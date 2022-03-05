@@ -17,9 +17,10 @@
 #include "buffer/lru_replacer.h"
 #include "gtest/gtest.h"
 
+
 namespace bustub {
 
-TEST(LRUReplacerTest, DISABLED_SampleTest) {
+TEST(LRUReplacerTest, SampleTest) {
   LRUReplacer lru_replacer(7);
 
   // Scenario: unpin six elements, i.e. add them to the replacer.
@@ -50,6 +51,7 @@ TEST(LRUReplacerTest, DISABLED_SampleTest) {
   // Scenario: unpin 4. We expect that the reference bit of 4 will be set to 1.
   lru_replacer.Unpin(4);
 
+
   // Scenario: continue looking for victims. We expect these victims.
   lru_replacer.Victim(&value);
   EXPECT_EQ(5, value);
@@ -57,6 +59,7 @@ TEST(LRUReplacerTest, DISABLED_SampleTest) {
   EXPECT_EQ(6, value);
   lru_replacer.Victim(&value);
   EXPECT_EQ(4, value);
+
 }
 
 }  // namespace bustub

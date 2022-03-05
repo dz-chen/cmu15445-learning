@@ -13,6 +13,7 @@
 #pragma once
 
 #include <list>
+// NOLINT 保证静态代码检查工具会略过该行
 #include <mutex>  // NOLINT
 #include <unordered_map>
 
