@@ -21,7 +21,7 @@ LRUReplacer::LRUReplacer(size_t num_pages) {
   tail_ = new Node();
   head_->next = tail_;  head_->prev = tail_;
   tail_->next = head_;  tail_->prev = head_;
-  used_pages_ = 0;
+  unpin_pages_ = 0;
 }
 
 LRUReplacer::~LRUReplacer(){
@@ -46,7 +46,7 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
   vict->next->prev = head_;
   id2ptr_.erase(*frame_id);
   delete vict;
-  used_pages_--;
+  unpin_pages_--;
   latch_.unlock();
   return true;
  }
@@ -65,17 +65,20 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
   prev->next=next; next->prev=prev;
   delete node;
   id2ptr_.erase(frame_id);
-  used_pages_--;
+  unpin_pages_--;
   latch_.unlock();
 }
 
+/**
+ * pin_count_ 为0的 page,才可以将其 unpin 到 lru 中
+ */ 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
   // unpined 的 frame 可以被加入LRU链表末尾
   // 注: project1中没有提及LRU缓存满的情况,这里暂时Log下来
   latch_.lock();
-  if(used_pages_ >= max_pages_){
+  if(unpin_pages_ >= max_pages_){
     LOG_WARN("cached pages in LRU buff have exceed, where max_pages=%d, used_pages=%d",\
-            (int)max_pages_,(int)used_pages_);
+            (int)max_pages_,(int)unpin_pages_);
     latch_.unlock();
     return;
   }
@@ -93,13 +96,13 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
   node->prev = prev; node->next = tail_;
   tail_->prev = node;
   id2ptr_[frame_id] = node;
-  used_pages_++;
+  unpin_pages_++;
   latch_.unlock();
 }
 
 size_t LRUReplacer::Size() {
   // TODO: 这里需要上锁吗 ?
-  return used_pages_; 
+  return unpin_pages_; 
 }
 
 }  // namespace bustub

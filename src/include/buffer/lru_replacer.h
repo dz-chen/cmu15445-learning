@@ -48,7 +48,7 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  // 基本思路: 双线链表+hash实现LRU , 链表头部的是最近最久未使用的
+  // 基本思路: 双向链表+hash实现LRU , 链表头部的是最近最久未使用的
   // TODO(student): implement me!
   typedef struct Node{
     frame_id_t frame_id;
@@ -63,13 +63,13 @@ class LRUReplacer : public Replacer {
     }
   }Node;
 
-  // head、tail不实际存储 frame_id
+  // head、tail不实际存储 frame_id; 当然,也可以用 std::list 实现双向链表
   Node* head_;
   Node* tail_;
   size_t max_pages_;
-  size_t used_pages_;
+  size_t unpin_pages_;
   std::unordered_map<int,Node*> id2ptr_;
-  // 用于保护 lru_replacer 中所有共享变量; 这里上锁粒度较粗,基本都是锁整个函数...
+  // 用于保护 lru_replacer 中所有共享变量; 这里上锁粒度较粗,基本都是锁整个函数(临界区)...
   std::mutex latch_;
 };
 

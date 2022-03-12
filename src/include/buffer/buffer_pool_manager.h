@@ -163,9 +163,9 @@ class BufferPoolManager {
   LogManager *log_manager_ __attribute__((__unused__));
   /** Page table for keeping track of buffer pool pages. */
   std::unordered_map<page_id_t, frame_id_t> page_table_;
-  /** Replacer to find unpinned pages for replacement. */
+  /** Replacer to find unpinned pages for replacement. replacer管理的是可以被置换出去的frame(_id), 是page_table_对应 page 的子集 */
   Replacer *replacer_;
-  /** List of free pages. */
+  /** List of free pages. frame_id_t 只是在pages_[] 这个buffer中的编号,并非真正物理页号 */
   std::list<frame_id_t> free_list_;
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
