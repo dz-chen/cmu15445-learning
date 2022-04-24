@@ -78,7 +78,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 
   // 4.从磁盘读取数据到 buffer 中(当前frame/page), 更新 page 的元数据
   page->page_id_ = page_id;
-  page->pin_count_ = 1;
+  page->pin_count_ = 1;         // TODO: ==1 or +1 ?
   page->is_dirty_ = false;
   disk_manager_->ReadPage(page->page_id_, page->data_);
   

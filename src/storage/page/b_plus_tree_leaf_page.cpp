@@ -56,6 +56,7 @@ KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
   return key;
 }
 
+
 /*
  * Helper method to find and return the key & value pair associated with input
  * "index"(a.k.a array offset)
@@ -66,17 +67,32 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
   return array[0];
 }
 
+
 /*****************************************************************************
  * INSERTION
  *****************************************************************************/
 /*
  * Insert key & value pair into leaf page ordered by key
  * @return  page size after insertion
+ * TODO:改为二分查找
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  return 0;
+  assert(GetSize()<GetMaxSize());
+
+  int i=GetSize()-1;
+  while(i>=0 && comparator(key,array[i].first)<0 ){
+    array[i+1]=array[i];
+    i--;
+  }
+  array[i+1].first=key;
+  array[i+1].second=value;
+
+  SetSize(GetSize()+1);
+
+  return GetSize();
 }
+
 
 /*****************************************************************************
  * SPLIT
@@ -85,13 +101,30 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {
+  assert(recipient!=nullptr);
+  
+  int size = GetSize();
+  int start = (size+1)/2;       // 要移动的第一个kv对下标
+  for(int i=start;i<size;i++){
+    recipient->array[i-start]=array[i];
+  }
+  recipient->SetSize(size-start);
+  SetSize(start);
+  
+  // 对于叶子结点,需要更新兄弟结点指针
+  page_id_t next_page_id = GetNextPageId();
+  recipient->SetNextPageId(next_page_id);
+  SetNextPageId(recipient->GetPageId());
+}
 
 /*
  * Copy starting from items, and copy {size} number of elements into me.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {
+  // PASS,本身就是叶子结点,无需像内部结点一样修改子结点的父指针
+}
 
 /*****************************************************************************
  * LOOKUP
@@ -100,9 +133,19 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
  * For the given key, check to see whether it exists in the leaf page. If it
  * does, then store its corresponding value in input "value" and return true.
  * If the key does not exist, then return false
+ * 注意:
+ *   1.当key存在时,需要通过参数value返回对应的值;
+ *   2.leaf_page,不需要舍弃第一个kv对;
+ * TODO:改为二分查找
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
+  for(int i=0;i<GetSize();i++){
+    if(comparator(key,array[i].first)==0){
+      *value=array[i].second;
+      return true;
+    }
+  }
   return false;
 }
 

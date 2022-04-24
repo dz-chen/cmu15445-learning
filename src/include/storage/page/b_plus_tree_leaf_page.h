@@ -38,6 +38,11 @@ namespace bustub {
  *  -----------------------------------------------
  * | ParentPageId (4) | PageId (4) | NextPageId (4)
  *  -----------------------------------------------
+ *
+ * 注意:
+ *   1.与internal_page不同,这里的kv对是完整的,不需要舍弃第一个key => 因为NextPageId是放在HEADER中的!
+ *   2.成员next_page_id_其实就是HEADER的末尾NextPageId;
+ *   3.成员array仅跟着NextPageId,所以从它开始就是kv对了;
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeLeafPage : public BPlusTreePage {

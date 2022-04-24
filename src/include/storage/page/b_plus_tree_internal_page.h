@@ -17,8 +17,8 @@
 namespace bustub {
 
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
-#define INTERNAL_PAGE_HEADER_SIZE 24
-#define INTERNAL_PAGE_SIZE ((PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE) / (sizeof(MappingType)))
+#define INTERNAL_PAGE_HEADER_SIZE 24              // 24是由  BPlusTreePage 的字段决定的
+#define INTERNAL_PAGE_SIZE ((PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE) / (sizeof(MappingType)))    // 实际是 k/v 个数
 /**
  * Store n indexed keys and n+1 child pointers (page_id) within internal page.
  * Pointer PAGE_ID(i) points to a subtree in which all keys K satisfy:
@@ -31,7 +31,19 @@ namespace bustub {
  *  --------------------------------------------------------------------------
  * | HEADER | KEY(1)+PAGE_ID(1) | KEY(2)+PAGE_ID(2) | ... | KEY(n)+PAGE_ID(n) |
  *  --------------------------------------------------------------------------
+ * 1.理解:the first key always remains invalid
+ *      |k1,v1 | k2,v2 | k3,v3 | ...... |kn,vn|
+ *      k1设置为invalid,意味着可以查找的内容只有: |v1 | k2,v2 | k3,v3 | ...... |kn,vn|
+ *      共可以访问 n-1个key, n个val
+ * 
+ * 2.K(i) <= K < K(i+1)
+ *    说明除第一个落单的val外,每个kv对的val指向的结点都是>=当前key的
+ * 
  */
+
+/**
+ * 注意这是一个模板
+ */ 
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeInternalPage : public BPlusTreePage {
  public:
@@ -61,6 +73,6 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager);
   void CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
   void CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
-  MappingType array[0];
+  MappingType array[0];       // 将 array 看作一个指向 kv_array 的指针
 };
 }  // namespace bustub

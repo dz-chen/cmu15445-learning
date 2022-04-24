@@ -20,6 +20,7 @@
 
 namespace bustub {
 
+// record的标志 => (page_id,slot_num)
 class RID {
  public:
   /** The default constructor creates an invalid RID! */

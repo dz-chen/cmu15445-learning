@@ -17,6 +17,8 @@
 #include "storage/page/header_page.h"
 
 namespace bustub {
+
+// B+树,模板类
 INDEX_TEMPLATE_ARGUMENTS
 BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                           int leaf_max_size, int internal_max_size)
@@ -31,7 +33,10 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const { return true; }
+bool BPLUSTREE_TYPE::IsEmpty() const {
+  return root_page_id_ == INVALID_PAGE_ID;
+}
+
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -56,7 +61,14 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  * keys return false, otherwise return true.
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) { return false; }
+bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) {
+  if(IsEmpty()){
+    StartNewTree(key,value);
+    return true;    
+  }
+  return InsertIntoLeaf(key,value,transaction); 
+}
+
 /*
  * Insert constant key & value pair into an empty tree
  * User needs to first ask for new page from buffer pool manager(NOTICE: throw
@@ -64,7 +76,22 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
  * tree's root page id and insert entry directly into leaf page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {}
+void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
+  page_id_t new_page_id;
+  Page* new_page=buffer_pool_manager_->NewPage(&new_page_id);
+  if(new_page==nullptr){
+    throw Exception(ExceptionType::OUT_OF_MEMORY,"b_plus_tree.cpp,StartNewTree");
+  }
+  // 新创建的root page,其内容被视为一个叶子结点
+  B_PLUS_TREE_LEAF_PAGE_TYPE* root_page=reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(new_page);
+  root_page->SetPageType(ROOT_LEAF_PAGE);
+  root_page->SetMaxSize(leaf_max_size_);
+  // 插入kv
+  root_page->Insert(key,value,comparator_);
+  // 在索引文件中新增一棵B+树
+  root_page_id_ = new_page_id;
+  UpdateRootPageId(true);   
+}
 
 /*
  * Insert constant key & value pair into leaf page
@@ -76,7 +103,18 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
-  return false;
+  Page* page=FindLeafPage(key,false);
+  B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
+  ValueType value;
+  bool exist=leaf_page->Lookup(key,&value,comparator_);
+  if(exist) return false;
+  
+  // 先插入,再判断是否需要分裂
+  leaf_page->Insert(key,value,comparator_);
+  if(leaf_page->GetSize() > leaf_page->GetMaxSize()){  // 分裂
+    Split(leaf_page);
+  }
+  return true;
 }
 
 /*
@@ -85,11 +123,90 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
  * User needs to first ask for new page from buffer pool manager(NOTICE: throw
  * an "out of memory" exception if returned value is nullptr), then move half
  * of key & value pairs from input page to newly created page
+ * 注:
+ *   1.插入算法最麻烦的就是分裂,特别重要...
+ *   2.分裂是递归进行的;
  */
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 N *BPLUSTREE_TYPE::Split(N *node) {
-  return nullptr;
+  page_id_t new_page_id;
+  Page* new_page=buffer_pool_manager_->NewPage(&new_page_id);
+  if(new_page==nullptr){
+    throw Exception(ExceptionType::OUT_OF_MEMORY,"b_plus_tree.cpp,Split");
+  }
+  N* r_brother = reinterpret_cast<N*>(new_page->GetData());
+
+  /////////////////////////////// x. 特别判断要分裂的结点是否为根结点
+  if(node->IsRootPage()){
+    // 需要创建新的根结点
+    page_id_t new_root_pgid;
+    Page* new_root_page=buffer_pool_manager_->NewPage(&new_root_pgid);
+    if(new_root_page==nullptr){
+      throw Exception(ExceptionType::OUT_OF_MEMORY,"b_plus_tree.cpp,Split");
+    }
+
+    // 更新相关信息
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE* root_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(new_root_page->GetData());
+    root_node->SetPageType(ROOT_INTERNAL_PAGE);
+    KeyType null_key; ValueType null_val;   // 仅设置新root的第一个val指针
+    root_node->PopulateNewRoot(node->GetPageId(),null_key,null_val);
+    root_page_id_ = new_root_pgid;
+    UpdateRootPageId(false);
+    root_node->SetMaxSize(internal_max_size_);
+    node->SetParentPageId(new_root_pgid);
+    if(node->IsLeafPage()){     // 如果这个根结点原本就是叶子结点
+      node->SetPageType(LEAF_PAGE);
+    }
+    else{                       // 这个根结点原本是内部结点
+      node->SetPageType(INTERNAL_PAGE);
+    }
+  }
+
+  /////////////////////////////// a.分裂
+  KeyType add_key;      // 分裂时需要向parent新插入的key
+  if(node->IsLeafPage()){                                              //// 1.如果分裂的是叶子结点
+    // 1.1 将叶子结点 node 的后一半数据拷贝到右兄弟
+    r_brother->SetMaxSize(leaf_max_size_);
+    node->MoveHalfTo(r_brother);    // 内部更新了右指针nexPageId
+    int size=node->GetSize();
+    size=size-(size+1)/2;           // 拷贝到右兄弟结点的kv对数
+    r_brother->CopyNFrom(node->array,size);
+
+    // 1.2 r_brother最小key以及r_bother的页号作为kv对插入父结点
+    add_key = r_brother->KeyAt(0);
+    // 1.3 设置r_brother的page类型,为叶子结点
+    r_brother->SetPageType(LEAF_PAGE);
+  }
+  else{                                                                //// 2.如果分裂的是内部结点
+    // 2.1 将内部结点 node 的后一半数据拷贝到右兄弟
+    // 注意:对于内部结点的分裂,中间那个key是要放到父结点(且不能处出现在之前的内部结点,这点不同于叶子结点)
+    r_brother->SetMaxSize(internal_max_size_);
+    node->MoveHalfTo(r_brother,buffer_pool_manager_);
+    int size = GetSize();
+    int low=1; int high=size-1;
+    int mid=(low+high+1)/2;             // 中间那个有效key结点在array[]中的下标
+    int size_rb=size-mid;               // 右兄弟结点中的kv对数(包含第一个key无效的kv对)
+    r_brother->CopyNFrom(node->array,size_rb,buffer_pool_manager_);
+
+    // 2.2 将中间键与 r_bother 的页号作为kv对插入父结点
+    add_key=KeyAt(mid);
+    // 2.3 设置r_brother的page类型,为内部结点
+    r_brother->SetPageType(INTERNAL_PAGE);
+  }
+
+  /////////////////////////////// b.分裂后更新父结点(即插入因分裂新增的kv)
+    page_id_t parent_id = node->GetParentPageId();
+    Page* parent_page = buffer_pool_manager_->FetchPage(parent_id);
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE* parent_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(parent_page->GetData());
+    parent_node->InsertNodeAfter(node->GetPageId(),add_key,r_brother->GetPageId());
+    if(parent_node->GetSize() > parent_node->GetMaxSize()){     // 父结点需要分裂
+      Split(parent_node);
+    }
+
+    /////////////////////////////// c.更新r_brother的父指针
+    r_brother->SetParentPageId(parent_id);
+  return r_brother;
 }
 
 /*
@@ -103,7 +220,9 @@ N *BPLUSTREE_TYPE::Split(N *node) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
-                                      Transaction *transaction) {}
+                                      Transaction *transaction) {
+  // 直接在 Split()中实现了
+}
 
 /*****************************************************************************
  * REMOVE
@@ -209,10 +328,35 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(); }
 /*
  * Find leaf page containing particular key, if leftMost flag == true, find
  * the left most leaf page
+ * 理解:两个功能
+ *   1.如果leftMost为true,则直接返回最左叶子结点,不用考虑Key;
+ *   2.leftMost为false,则返回key所在的结点;
+ * TODO:改为二分查找
  */
 INDEX_TEMPLATE_ARGUMENTS
 Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
-  throw Exception(ExceptionType::NOT_IMPLEMENTED, "Implement this for test");
+  // throw Exception(ExceptionType::NOT_IMPLEMENTED, "Implement this for test");
+  Page* page=buffer_pool_manager_->FetchPage(root_page_id_);
+  BPlusTreePage* node=reinterpret_cast<BPlusTreePage*>(page->GetData());
+  
+  if(leftMost){
+    while (!node->IsLeafPage()){
+      // ValueAt(0) 是第一个左子结点的指针
+      B_PLUS_TREE_INTERNAL_PAGE_TYPE* internal_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(node);
+      page = buffer_pool_manager_->FetchPage(internal_node->ValueAt(0));
+      BPlusTreePage* node=reinterpret_cast<BPlusTreePage*>(page->GetData());
+    }
+    return page;
+  }
+
+  // 查找key所在的叶子结点
+  while(!node->IsLeafPage()){
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE* internal_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE*>(node);
+    int child_page_id=internal_node->Lookup(key,comparator_);
+    page = buffer_pool_manager_->FetchPage(child_page_id);
+    BPlusTreePage* node=reinterpret_cast<BPlusTreePage*>(page->GetData());
+  }
+  return page;
 }
 
 /*
@@ -222,6 +366,9 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
  * @parameter: insert_record      defualt value is false. When set to true,
  * insert a record <index_name, root_page_id> into header page instead of
  * updating it.
+ * 理解:
+ *   1.一个索引文件中可能包含多棵B+树,索引文件的header_page中存放了这些B+树的根结点信息;
+ *   2.一棵B+树的root结点也可能不断更新...
  */
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::UpdateRootPageId(int insert_record) {

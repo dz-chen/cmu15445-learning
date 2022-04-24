@@ -25,7 +25,9 @@ namespace bustub {
 #define INDEX_TEMPLATE_ARGUMENTS template <typename KeyType, typename ValueType, typename KeyComparator>
 
 // define page type enum
-enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE };
+// B+树共两类结点:LEAF_PAGE、INTERNAL_PAGE, 根结点既可能是LEAF_PAGE,也可能是INTERNAL_PAGE
+// ROOT_LEAF_PAGE, ROOT_INTERNAL_PAGE 由个人添加,用于特别区分此时根结点是LEAF还是INTERNAL
+enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE, ROOT_LEAF_PAGE, ROOT_INTERNAL_PAGE };
 
 /**
  * Both internal and leaf page are inherited from this page.
@@ -43,6 +45,7 @@ enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE };
 class BPlusTreePage {
  public:
   bool IsLeafPage() const;
+  bool IsInternalPage() const;
   bool IsRootPage() const;
   void SetPageType(IndexPageType page_type);
 
@@ -64,12 +67,13 @@ class BPlusTreePage {
 
  private:
   // member variable, attributes that both internal and leaf page share
-  IndexPageType page_type_ __attribute__((__unused__));
-  lsn_t lsn_ __attribute__((__unused__));
-  int size_ __attribute__((__unused__));
-  int max_size_ __attribute__((__unused__));
-  page_id_t parent_page_id_ __attribute__((__unused__));
-  page_id_t page_id_ __attribute__((__unused__));
+  // by cdz:本人实现时,max_size_ 为实际可存储的kv对数-1(或者更小),从而方便插入及分裂 => 即每个page总有一个kv对的空间不会真正存储数据...
+  IndexPageType page_type_ __attribute__((__unused__));       // internal or leaf
+  lsn_t lsn_ __attribute__((__unused__));                     // Log sequence number
+  int size_ __attribute__((__unused__));                      // Number of Key & Value pairs in page
+  int max_size_ __attribute__((__unused__));                  // Max number of Key & Value pairs in page
+  page_id_t parent_page_id_ __attribute__((__unused__));      // Parent Page Id
+  page_id_t page_id_ __attribute__((__unused__));             // Self Page Id
 };
 
 }  // namespace bustub

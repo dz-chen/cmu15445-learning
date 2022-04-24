@@ -32,6 +32,31 @@ namespace bustub {
  * (2) support insert & remove
  * (3) The structure should shrink and grow dynamically
  * (4) Implement index iterator for range scan
+ * 
+ * 
+ * ******************************************** B+ 树知识点总结:
+ * 一棵m阶的B+树定义如下:
+ *   1.根结点最少包含1个关键字个数,最多包含m-1个关键字;
+ *   2.B+树内部结点不保存数据,只用于索引,所有数据(或者说记录)都保存在叶子结点中;
+ *   3.内部结点最少有ceil(m/2)-1 个关键字, 最多有m-1个关键字(或者说内部结点最多有m个子树);
+ *   4.对于内部结点中的一个key,左子树中的所有key都小于它,右子树中的所有key都大于等于它!
+ * 
+ * 
+ * 
+ * ***** duplicated
+ * 
+ * 1.子节点个数: 若b表示结点总容量(kv对个数,最大子结点为b+1),m表示实存储个数,则
+ *    对于root:            2 <= m <= b
+ *    对于 internal, leaf: cell(b/2) <= m <= b
+ * 
+ * 2.key(i)指向的子节点:
+ *    K(i) <= K < K(i+1),k(i)的所有下层数据,都满足这个条件
+ * 
+ * 3.
+ * ******************************************** end
+ * 
+ * by cdz:
+ *   1.注意这是一个模板类  template <typename KeyType, typename ValueType, typename KeyComparator> class BPlusTree{ .... }
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
@@ -93,6 +118,7 @@ class BPlusTree {
   template <typename N>
   bool CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);
 
+  // Coalesce: 联合
   template <typename N>
   bool Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
                 int index, Transaction *transaction = nullptr);

@@ -62,33 +62,38 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
 
   DiskManager *disk_manager = new DiskManager("test.db");
   BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);
+
   // create and fetch header_page
   page_id_t page_id;
-  auto header_page = bpm->NewPage(&page_id);
+  auto header_page = bpm->NewPage(&page_id);      // 似乎没用上? TODO:
+
   // create b+ tree
+  // BPlusTree<KeyType, ValueType, KeyComparator>, 8是key的字节数
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, leaf_max_size, internal_max_size);
+  
   // create transaction
   Transaction *transaction = new Transaction(0);
   while (!quit) {
     std::cout << "> ";
     std::cin >> instruction;
     switch (instruction) {
-      case 'c':
+      case 'c':                         // delete multiple keys from reading file
         std::cin >> filename;
         tree.RemoveFromFile(filename, transaction);
         break;
-      case 'd':
+      case 'd':                         // Delete key <k> and its associated value
         std::cin >> key;
         index_key.SetFromInteger(key);
         tree.Remove(index_key, transaction);
         break;
-      case 'i':
+      case 'i':                       // Insert <k> (int64_t) as both key and value
         std::cin >> key;
+        // Set(page_id,slot_num)
         rid.Set(static_cast<int32_t>(key >> 32), static_cast<int>(key & 0xFFFFFFFF));
-        index_key.SetFromInteger(key);
+        index_key.SetFromInteger(key);  // 初始化key
         tree.Insert(index_key, rid, transaction);
         break;
-      case 'f':
+      case 'f':                       // insert multiple keys from reading file.
         std::cin >> filename;
         tree.InsertFromFile(filename, transaction);
         break;
@@ -96,9 +101,9 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
         quit = true;
         break;
       case 'p':
-        tree.Print(bpm);
+        tree.Print(bpm);             // Print the B+ tree
         break;
-      case 'g':
+      case 'g':                     // Output the tree in graph format to a dot file
         std::cin >> filename;
         tree.Draw(bpm, filename);
         break;
@@ -116,7 +121,7 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
   delete bpm;
   delete transaction;
   delete disk_manager;
-  remove("test.db");
+  remove("test.db");                // cpp函数,删除文件
   remove("test.log");
 }
 }  // namespace bustub
