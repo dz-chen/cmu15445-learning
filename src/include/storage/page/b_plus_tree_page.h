@@ -26,8 +26,8 @@ namespace bustub {
 
 // define page type enum
 // B+树共两类结点:LEAF_PAGE、INTERNAL_PAGE, 根结点既可能是LEAF_PAGE,也可能是INTERNAL_PAGE
-// ROOT_LEAF_PAGE, ROOT_INTERNAL_PAGE 由个人添加,用于特别区分此时根结点是LEAF还是INTERNAL
-enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE, ROOT_LEAF_PAGE, ROOT_INTERNAL_PAGE };
+// 如何识别根结点 => parent_page_id_ == INVALID_PAGE_ID 则为根结点
+enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE};
 
 /**
  * Both internal and leaf page are inherited from this page.
@@ -45,7 +45,6 @@ enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE, ROO
 class BPlusTreePage {
  public:
   bool IsLeafPage() const;
-  bool IsInternalPage() const;
   bool IsRootPage() const;
   void SetPageType(IndexPageType page_type);
 
@@ -67,7 +66,9 @@ class BPlusTreePage {
 
  private:
   // member variable, attributes that both internal and leaf page share
-  // by cdz:本人实现时,max_size_ 为实际可存储的kv对数-1(或者更小),从而方便插入及分裂 => 即每个page总有一个kv对的空间不会真正存储数据...
+  // by cdz:
+  //      1.本人实现时,max_size_ 为实际可存储的kv对数-1(或者更小),从而方便插入及分裂 => 即每个page总有一个kv对的空间不会真正存储数据,当这个空间有数据时将会分裂...
+  //      2.本人将max_size_ 理解为所有kv对数(包括第一个无效的key),也就是最大子结点数 <=> 而不是仅指有效key的个数; TODO:这种方式是否正确 ?
   IndexPageType page_type_ __attribute__((__unused__));       // internal or leaf
   lsn_t lsn_ __attribute__((__unused__));                     // Log sequence number
   int size_ __attribute__((__unused__));                      // Number of Key & Value pairs in page

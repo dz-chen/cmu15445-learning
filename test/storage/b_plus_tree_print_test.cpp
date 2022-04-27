@@ -41,7 +41,8 @@ std::string usageMessage() {
 }
 
 // Remove 'DISABLED_' when you are ready
-TEST(BptTreeTest, DISABLED_UnitTest) {
+// TEST(BptTreeTest, DISABLED_UnitTest) {
+TEST(BptTreeTest, UnitTest) {
   int64_t key = 0;
   GenericKey<8> index_key;
   RID rid;
@@ -63,9 +64,9 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
   DiskManager *disk_manager = new DiskManager("test.db");
   BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);
 
-  // create and fetch header_page
+  // create and fetch header_page, 给索引文件的header_page分配空间
   page_id_t page_id;
-  auto header_page = bpm->NewPage(&page_id);      // 似乎没用上? TODO:
+  auto header_page = bpm->NewPage(&page_id);
 
   // create b+ tree
   // BPlusTree<KeyType, ValueType, KeyComparator>, 8是key的字节数

@@ -63,7 +63,8 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   int RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator);
 
   // Split and Merge utility methods
-  void MoveHalfTo(BPlusTreeLeafPage *recipient);
+  // buffer_pool_manager 由个人添加,只是为了在Split()时避免模板静态多态的问题,不会被使用
+  void MoveHalfTo(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager); 
   void MoveAllTo(BPlusTreeLeafPage *recipient);
   void MoveFirstToEndOf(BPlusTreeLeafPage *recipient);
   void MoveLastToFrontOf(BPlusTreeLeafPage *recipient);
@@ -72,7 +73,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   void CopyNFrom(MappingType *items, int size);
   void CopyLastFrom(const MappingType &item);
   void CopyFirstFrom(const MappingType &item);
-  page_id_t next_page_id_;
-  MappingType array[0];
+  page_id_t next_page_id_;    // 恰好是 HEADER 区域的最后四个字节
+  MappingType array[0];       // HEADER 后面即数据存储区域
 };
 }  // namespace bustub

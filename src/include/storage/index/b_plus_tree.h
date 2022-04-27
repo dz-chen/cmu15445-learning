@@ -120,8 +120,12 @@ class BPlusTree {
 
   // Coalesce: 联合
   template <typename N>
-  bool Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
+  // bool Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
+  //               int index, Transaction *transaction = nullptr);
+  // 感觉用双指针不方便且没有意义,改为单指针
+  bool Coalesce(N *neighbor_node, N *node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *parent,
                 int index, Transaction *transaction = nullptr);
+
 
   template <typename N>
   void Redistribute(N *neighbor_node, N *node, int index);

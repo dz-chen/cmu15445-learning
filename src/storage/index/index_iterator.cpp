@@ -15,16 +15,71 @@ INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::IndexIterator() = default;
 
 INDEX_TEMPLATE_ARGUMENTS
+INDEXITERATOR_TYPE::IndexIterator(B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_node,BufferPoolManager* buffer_pool_manager){
+    leaf_node_ = leaf_node;
+    index_ = 0;
+    buffer_pool_manager_ = buffer_pool_manager;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+INDEXITERATOR_TYPE::IndexIterator(B_PLUS_TREE_LEAF_PAGE_TYPE* leaf_node,int index, BufferPoolManager* buffer_pool_manager){
+    leaf_node_ = leaf_node;
+    index_ = index;
+    buffer_pool_manager_ = buffer_pool_manager;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::~IndexIterator() = default;
 
+/*
+ * return whether this iterator is pointing at the last key/value pair. 
+ * 准确的说:如果真的指向最后一个record应该返回false, 只有当遍历完最后一个record后才返回true
+ */ 
 INDEX_TEMPLATE_ARGUMENTS
-bool INDEXITERATOR_TYPE::isEnd() { throw std::runtime_error("unimplemented"); }
+bool INDEXITERATOR_TYPE::isEnd() {
+    return leaf_node_ ==nullptr;
+}
 
 INDEX_TEMPLATE_ARGUMENTS
-const MappingType &INDEXITERATOR_TYPE::operator*() { throw std::runtime_error("unimplemented"); }
+const MappingType &INDEXITERATOR_TYPE::operator*() {
+    return leaf_node_->GetItem(index_);
+}
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() { throw std::runtime_error("unimplemented"); }
+INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
+    index_++;
+    // 确定是否需要进入右兄弟结点
+    if(index_>=leaf_node_->GetSize()){
+        page_id_t next_page_id = leaf_node_->GetNextPageId();
+        if(next_page_id == INVALID_PAGE_ID){    // 已经遍历完所有叶子结点中的记录
+            leaf_node_ = nullptr;
+        }
+        else{                                   // 否则进入下一个结点
+            Page* next_page = buffer_pool_manager_->FetchPage(next_page_id);
+            leaf_node_ = reinterpret_cast<LEAF_PAGE_HEADER_SIZE*>(next_page->GetData());
+            index_ = 0;
+        }
+    }
+    return *this;
+}
+
+/*
+ * Return whether two iterators are equal
+ */ 
+INDEX_TEMPLATE_ARGUMENTS
+bool INDEXITERATOR_TYPE::operator==(const IndexIterator &itr) const{
+    return buffer_pool_manager_ == itr.buffer_pool_manager_
+            && leaf_node_ == itr.leaf_node_
+            && index_ == itr.index_;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+bool INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const{
+    return buffer_pool_manager_ != itr.buffer_pool_manager_
+            || leaf_node_ != itr.leaf_node_
+            || index_ != itr.index_;
+}
+
 
 template class IndexIterator<GenericKey<4>, RID, GenericComparator<4>>;
 
