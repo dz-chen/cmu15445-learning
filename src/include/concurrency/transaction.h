@@ -204,6 +204,7 @@ class Transaction {
   /**
    * Adds a page into the page set.
    * @param page page to be added
+   * 存放加上了 latch 的Page!
    */
   inline void AddIntoPageSet(Page *page) { page_set_->push_back(page); }
 
@@ -263,7 +264,7 @@ class Transaction {
   /** The LSN of the last record written by the transaction. */
   lsn_t prev_lsn_;
 
-  /** Concurrent index: the pages that were latched during index operation. */
+  /** Concurrent index: the pages that were latched during index operation. 已加latch的Page! */
   std::shared_ptr<std::deque<Page *>> page_set_;
   /** Concurrent index: the page IDs that were deleted during index operation.*/
   std::shared_ptr<std::unordered_set<page_id_t>> deleted_page_set_;

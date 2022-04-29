@@ -1,10 +1,13 @@
 [toc]
 
 # 实现细节注意
+## B+树数据结构
 - 从测试代码递归往下看,更容易理解;  
 - bustub中B+树的叶子结点中的val只是RecordId,是`非聚簇索引`;  
 - bustub不支持重复键;  
 - 在bustub中,对于内部结点,第一个key是落单的;对于叶子结点,所有kv都是成对的;详见b_plus_tree_internal_page.h、详见b_plus_tree_leaf_page.h;  
+- 内部结点的每个key,都对应了一个叶子结点中的最小值;
+- 内部结点的第一个kv对中只存储了val,没有key,`但本质上第一个kv对的key是父结点中指向当前内部结点的kv对中的那个key`;
 - b_plus_tree_page的`GetSize()函数,返回的是除PageHdr外的所有kv对个数`,对于内部结点,第一个key无效<=>对于叶子结点,第一个key有效;  
 - 为方便B+树的插入,b_plus_tree_page的`GetMaxSize()函数应该返回page实际可存储的KV对数-1`,从而能够先插入,再分裂,方便编码;  
 - B+树叶子结点和内部结点分裂时,到底多少个kv对(或者说key)留在原结点,多少个kv对放到右边兄弟结点,似乎说法不一(主要是相差1) => 本人做法如下:
@@ -18,10 +21,31 @@
 ```
 - 删除时涉及判断兄弟结点的问题,需注意不管内部结点还是叶子结点,`不是同一个父结点不能算是兄弟`;  
 
-# 关于B+树的一些理解
-- 内部结点的每个key,都对应了一个叶子结点中的最小值;
-- 内部结点的第一个kv对中都只存储了val,没有key,`但本质上第一个kv对的key是父结点中指向当前内部结点的kv对中的那个key`;
+## B+树latch
+- 上锁过程按照slides09中最原始的方式进行,即:
+```
+Find:Start at root and go down; repeatedly,
+    => Acquire R latch on child,Then unlatch parent(no need to check safe)
+
+Insert/Delete: Start at root and go down,obtaining W latches as needed. Once child is latched, check if it is safe:
+    => If child is safe, release all latches on ancestors.(safe means:won't split for insert,won't merge for delete)
+```
+- `只能对Page进行latch`,不能对BPlusTreePage进行latch;  
+- B+树并发控制中transaction的作用:  
+```
+1.store the page on which you have acquired latch while traversing through B+ tree;
+2.store the page which you have deleted during Remove operation;
+注意:都是在当前事务中的,操作结束需要清空.
+```
+- 对于INSERT导致分裂、DELETE导致合并的情况,因为FindLeafPage()时已经保证了在某个合适的祖先结点已经latch,故:`无需latch分裂出的新结点,合并后的结点如未latch也无需latch`;
+- 部分结点可能已经latch,但是后续因为DELETE合并而被删除,最终释放latch时注意将结点对应的Page一并删除;
 - 
+
+
+# 知识点积累
+## ReaderWriterLatch的实现(include/common/rwlatch.h) TODO
+## Lock crabbing protocol
+参考:[Lock crabbing protocol - how to make indexes concurrent](https://duynguyen-ori75.github.io/lock-crabbing/)
 
 # TODO
 ## project1中lru、buffer_pool_manager需重新检查(关于pin)

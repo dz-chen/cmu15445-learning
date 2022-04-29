@@ -33,33 +33,16 @@ namespace bustub {
  * (3) The structure should shrink and grow dynamically
  * (4) Implement index iterator for range scan
  * 
- * 
  * ******************************************** B+ 树知识点总结:
  * 一棵m阶的B+树定义如下:
  *   1.根结点最少包含1个关键字个数,最多包含m-1个关键字;
  *   2.B+树内部结点不保存数据,只用于索引,所有数据(或者说记录)都保存在叶子结点中;
  *   3.内部结点最少有ceil(m/2)-1 个关键字, 最多有m-1个关键字(或者说内部结点最多有m个子树);
  *   4.对于内部结点中的一个key,左子树中的所有key都小于它,右子树中的所有key都大于等于它!
- * 
- * 
- * 
- * ***** duplicated
- * 
- * 1.子节点个数: 若b表示结点总容量(kv对个数,最大子结点为b+1),m表示实存储个数,则
- *    对于root:            2 <= m <= b
- *    对于 internal, leaf: cell(b/2) <= m <= b
- * 
- * 2.key(i)指向的子节点:
- *    K(i) <= K < K(i+1),k(i)的所有下层数据,都满足这个条件
- * 
- * 3.
- * ******************************************** end
- * 
- * by cdz:
- *   1.注意这是一个模板类  template <typename KeyType, typename ValueType, typename KeyComparator> class BPlusTree{ .... }
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
+  // 用在 reinterpret_cast<>时可简化代码...
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
@@ -102,7 +85,7 @@ class BPlusTree {
   // read data from file and remove one by one
   void RemoveFromFile(const std::string &file_name, Transaction *transaction = nullptr);
   // expose for test purpose
-  Page *FindLeafPage(const KeyType &key, bool leftMost = false);
+  LeafPage* FindLeafPage(const KeyType &key, bool leftMost, IndexOpType indexOp,Transaction *transaction);
 
  private:
   void StartNewTree(const KeyType &key, const ValueType &value);
@@ -139,6 +122,23 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
+
+///////////////////////////////////////////////////////////////////////// add by cdz
+  void LockRootPageId(){
+    root_pgid_mutex_.lock();
+  }
+
+  void UnLockRootPageId(){
+    root_pgid_mutex_.unlock();
+  }
+
+  void LatchPage(Page* page,IndexOpType indexOp,Transaction *transaction);
+
+  void UnLatchAncestors(Page* page,IndexOpType indexOp,Transaction *transaction);
+
+  void FreeAllPagesInTxn(IndexOpType indexOp,Transaction *transaction);
+///////////////////////////////////////////////////////////////////////// end cdz
+
   // member variable
   std::string index_name_;
   page_id_t root_page_id_;
@@ -146,6 +146,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  std::mutex root_pgid_mutex_;      // 保护共享变量 root_page_id_ 的并发修改
 };
 
 }  // namespace bustub

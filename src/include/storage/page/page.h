@@ -18,8 +18,9 @@
 #include "common/config.h"
 #include "common/rwlatch.h"
 
-namespace bustub {
 
+namespace bustub {
+  
 /**
  * Page is the basic unit of storage within the database system. Page provides a wrapper for actual data pages being
  * held in main memory. Page also contains book-keeping information that is used by the buffer pool manager, e.g.
@@ -88,7 +89,7 @@ class Page {
   int pin_count_ = 0;
   /** True if the page is dirty, i.e. it is different from its corresponding page on disk. */
   bool is_dirty_ = false;
-  /** Page latch. */
+  /** Page latch. => 见 include/common/rwlatch.h */
   ReaderWriterLatch rwlatch_;
 };
 

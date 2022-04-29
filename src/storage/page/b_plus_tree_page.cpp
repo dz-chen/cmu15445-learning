@@ -90,4 +90,17 @@ void BPlusTreePage::SetLSN(lsn_t lsn) {
   lsn_ = lsn; 
 }
 
+///////////////////////////////////////////////////////////////////////// add by cdz
+/*
+ * 给当前Page 加上了Write latch后,检查当前Page是否安全
+ * 安全的含义:
+ *   1.若对B+树的操作是Insert,则插入后不会导致当前Page(node)分裂
+ *   2.若对B+树的操作是Delete,则删除后不会导致当前Page(node)合并
+ */ 
+bool BPlusTreePage::IsSafe(IndexOpType indxOp){
+  if(indxOp == IndexOpType::INSERT)  return GetSize() < GetMaxSize();
+  else if(indxOp == IndexOpType::DELETE) return GetSize() > GetMinSize();
+  else return true; // Find 始终是安全的
+}
+
 }  // namespace bustub

@@ -22,6 +22,7 @@ namespace bustub {
 
 /**
  * Reader-Writer latch backed by std::mutex.
+ * 由 互斥锁(mutex) 和 条件变量(cond) 实现的 RWLatch
  */
 class ReaderWriterLatch {
   using mutex_t = std::mutex;

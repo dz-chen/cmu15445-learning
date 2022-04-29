@@ -29,6 +29,9 @@ namespace bustub {
 // 如何识别根结点 => parent_page_id_ == INVALID_PAGE_ID 则为根结点
 enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE};
 
+// add by cdz: 对B+树进行的操作类型=> Find、Insert、Delete
+enum class IndexOpType { FIND = 0, INSERT, DELETE};
+
 /**
  * Both internal and leaf page are inherited from this page.
  *
@@ -64,6 +67,15 @@ class BPlusTreePage {
 
   void SetLSN(lsn_t lsn = INVALID_LSN);
 
+ /**
+   * add by cdz
+   * 给当前Page 加上了Write latch后,检查当前Page是否安全
+   * 安全的含义:
+   *   1.若对B+树的操作是Insert,则插入后不会导致当前Page(node)分裂
+   *   2.若对B+树的操作是Delete,则删除后不会捯饬当前Page(node)合并
+   */ 
+  bool IsSafe(IndexOpType indxOp);
+  
  private:
   // member variable, attributes that both internal and leaf page share
   // by cdz:
