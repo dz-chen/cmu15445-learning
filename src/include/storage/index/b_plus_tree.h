@@ -51,7 +51,7 @@ class BPlusTree {
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
 
   // Returns true if this B+ tree has no keys and values.
-  bool IsEmpty() const;
+  bool IsEmpty();
 
   // Insert a key-value pair into this B+ tree.
   bool Insert(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr);
@@ -124,14 +124,6 @@ class BPlusTree {
 
 
 ///////////////////////////////////////////////////////////////////////// add by cdz
-  void LockRootPageId(){
-    root_pgid_mutex_.lock();
-  }
-
-  void UnLockRootPageId(){
-    root_pgid_mutex_.unlock();
-  }
-
   void LatchPage(Page* page,IndexOpType indexOp,Transaction *transaction);
 
   void UnLatchAncestors(Page* page,IndexOpType indexOp,Transaction *transaction);

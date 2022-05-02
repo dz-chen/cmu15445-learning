@@ -51,6 +51,9 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
   return true;
  }
 
+/*
+ * This method should be called after a page is pinned to a frame in the BufferPoolManager
+ */ 
 void LRUReplacer::Pin(frame_id_t frame_id) {
   // pin 的frame需要从LRU链表删除(它们不能被置换出内存)
   latch_.lock();
@@ -69,8 +72,9 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
   latch_.unlock();
 }
 
-/**
- * pin_count_ 为0的 page,才可以将其 unpin 到 lru 中
+/*
+ * This method should be called when the pin_count of a page becomes 0
+ * pin_count=0 则可以被移除内存,因而放到LRU链表中
  */ 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
   // unpined 的 frame 可以被加入LRU链表末尾
@@ -101,8 +105,11 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
 }
 
 size_t LRUReplacer::Size() {
-  // TODO: 这里需要上锁吗 ?
-  return unpin_pages_; 
+  int size;
+  latch_.lock();
+  size = unpin_pages_;
+  latch_.unlock();
+  return size; 
 }
 
 }  // namespace bustub

@@ -246,7 +246,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
-  int size = GetSize();
   ValueType val = array[1].second;
   IncreaseSize(-1);
   return val;

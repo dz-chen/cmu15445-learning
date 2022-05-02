@@ -65,9 +65,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   // Split and Merge utility methods
   // buffer_pool_manager 由个人添加,只是为了在Split()时避免模板静态多态的问题,不会被使用
   void MoveHalfTo(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager); 
-  void MoveAllTo(BPlusTreeLeafPage *recipient);
-  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient);
-  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient);
+  void MoveAllTo(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager);
+  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager);
+  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager);
 
  private:
   void CopyNFrom(MappingType *items, int size);

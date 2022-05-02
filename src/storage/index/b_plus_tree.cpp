@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <string>
-
+#include <algorithm>
 #include "common/exception.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
@@ -32,10 +32,10 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const {
-  LockRootPageId();
+bool BPLUSTREE_TYPE::IsEmpty(){
+  root_pgid_mutex_.lock();
   bool empty = root_page_id_ == INVALID_PAGE_ID;
-  UnLockRootPageId();
+  root_pgid_mutex_.unlock();
   return empty;
 }
 
@@ -56,7 +56,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   if(!exist) return false;
 
   result[0].clear();
-  result[0][0]=val;
+  result[0].push_back(val);
   FreeAllPagesInTxn(IndexOpType::FIND,transaction);
   return true;
 }
@@ -105,10 +105,10 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   // 插入kv
   root_page->Insert(key,value,comparator_);
   // 在索引文件中新增一棵B+树
-  LockRootPageId();
+  root_pgid_mutex_.lock();
   root_page_id_ = new_page_id;
-  UnLockRootPageId();
-  UpdateRootPageId(true);   
+  UpdateRootPageId(true);
+  root_pgid_mutex_.unlock();
 }
 
 /*
@@ -170,10 +170,10 @@ N *BPLUSTREE_TYPE::Split(N *node) {
     root_node->Init(new_root_pgid,INVALID_PAGE_ID,internal_max_size_);
     KeyType null_key; page_id_t null_val;   // 仅设置新root的第一个val指针
     root_node->PopulateNewRoot(node->GetPageId(),null_key,null_val);
-    LockRootPageId();
+    root_pgid_mutex_.lock();
     root_page_id_ = new_root_pgid;
-    UnLockRootPageId();
     UpdateRootPageId(false);
+    root_pgid_mutex_.unlock();
     node->SetParentPageId(new_root_pgid);
   }
 
@@ -182,7 +182,7 @@ N *BPLUSTREE_TYPE::Split(N *node) {
   if(node->IsLeafPage()){                                              //// 1.如果分裂的是叶子结点
     r_brother->Init(new_page_id, node->GetParentPageId(), leaf_max_size_);
     // 1.1 将叶子结点 node 的后一半数据拷贝到右兄弟
-    node->MoveHalfTo(r_brother,nullptr);    // 内部更新了右指针nextPageId
+    node->MoveHalfTo(r_brother,buffer_pool_manager_); // 内部更新了右指针nextPageId
 
     // 1.2 r_brother最小key以及r_bother的页号作为kv对插入父结点
     add_key = r_brother->KeyAt(0);
@@ -239,13 +239,12 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   if(IsEmpty()) return;
-  Page* leaf_page = FindLeafPage(key,false,IndexOpType::DELETE,transaction);
-  LeafPage* leaf_node = reinterpret_cast<LeafPage*>(leaf_page);
+  LeafPage* leaf_node = FindLeafPage(key,false,IndexOpType::DELETE,transaction);
   leaf_node->RemoveAndDeleteRecord(key,comparator_);    // 内部会自动判断是否包含要删除的key
 
   // 需要合并 或者 重构, 具体哪种操作由CoalesceOrRedistribute()内部决定
   if(leaf_node->GetSize() < leaf_node->GetMinSize()){
-    bool coalesced = CoalesceOrRedistribute(leaf_node,nullptr);
+    CoalesceOrRedistribute(leaf_node,nullptr);
   }
 
   FreeAllPagesInTxn(IndexOpType::DELETE,transaction);
@@ -333,8 +332,7 @@ template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(N *neighbor_node, N *node,
                               BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *parent, int index,
                               Transaction *transaction) {
-  if(node->IsLeafPage()) node->MoveAllTo(neighbor_node);
-  else node->MoveAllTo(neighbor_node,buffer_pool_manager_);
+  node->MoveAllTo(neighbor_node,buffer_pool_manager_);
 
   // 在父结点中删除node的kv对,判断是否需要递归合并/重构
   parent->Remove(index);
@@ -359,14 +357,8 @@ bool BPLUSTREE_TYPE::Coalesce(N *neighbor_node, N *node,
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
-  if(index == 0){         // neighbor是右兄弟
-    if(node->IsLeafPage()) neighbor_node->MoveFirstToEndOf(node);
-    else neighbor_node->MoveFirstToEndOf(node,buffer_pool_manager_);
-  }
-  else{                   // neighbor是左兄弟
-    if(node->IsLeafPage()) neighbor_node->MoveLastToFrontOf(node);
-    else neighbor_node->MoveLastToFrontOf(node,buffer_pool_manager_);
-  }
+  if(index == 0) neighbor_node->MoveFirstToEndOf(node,buffer_pool_manager_); // neighbor是右兄弟
+  else neighbor_node->MoveLastToFrontOf(node,buffer_pool_manager_);          // neighbor是左兄弟
 }
 
 
@@ -382,25 +374,26 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
+  
   // TODO:待完善
   if(!old_root_node->IsLeafPage() && old_root_node->GetSize()==1){ // case1: 根结点是内部结点,只有一个指针,没有key了
     // 删除当前根结点,直接将叶子结点作为根结点
-    page_id_t child_page_id = old_root_node->RemoveAndReturnOnlyChild();
+    page_id_t child_page_id = reinterpret_cast<InternalPage*>(old_root_node)->RemoveAndReturnOnlyChild();
     Page* child_page = buffer_pool_manager_->FetchPage(child_page_id);
     LeafPage* child_node = reinterpret_cast<LeafPage*>(child_page->GetData());
     child_node->SetParentPageId(INVALID_PAGE_ID);
-    LockRootPageId();
+    root_pgid_mutex_.lock();
     root_page_id_ = child_page_id;
     UpdateRootPageId(0);
-    UnLockRootPageId();
+    root_pgid_mutex_.unlock();
     return true;
   }
 
   if(old_root_node->IsLeafPage() && old_root_node->GetSize()==0){  // case2: 根节点是叶子结点,已删完所有元素
-    LockRootPageId();
+    root_pgid_mutex_.lock();
     root_page_id_ = INVALID_PAGE_ID;
     UpdateRootPageId(0);
-    UnLockRootPageId();
+    root_pgid_mutex_.unlock();
   }
 
   // 其他情况不做任何处理,即使 GetSize()<GetMinSize()
@@ -419,8 +412,7 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
   KeyType tmp_key;
-  Page* leaf_page = FindLeafPage(tmp_key,true);
-  LeafPage* leaf_node = reinterpret_cast<LeafPage*>(leaf_page->GetData());
+  LeafPage* leaf_node = FindLeafPage(tmp_key,true,IndexOpType::FIND,nullptr);
   return INDEXITERATOR_TYPE(leaf_node,buffer_pool_manager_); 
 }
 
@@ -430,9 +422,8 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) { 
-  LeafPage* leaf_page = FindLeafPage(key,true);
-  LeafPage* leaf_node = reinterpret_cast<LeafPage*>(leaf_page->GetData());
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
+  LeafPage* leaf_node = FindLeafPage(key,true,IndexOpType::FIND,nullptr);
   int idx = leaf_node->KeyIndex(key,comparator_);
   return INDEXITERATOR_TYPE(leaf_node,idx,buffer_pool_manager_); 
 }
@@ -462,14 +453,15 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() {
  *   3.为了方便加latch,已修改最开始提供的接口(输入输出、内部功能等)...,直接返回BPlusTreeLeafPage
  *   4.重点:Lock crabbing protocol, 向下搜索的过程中,通过这个上锁协议完成并发控制
  *          参考:https://duynguyen-ori75.github.io/lock-crabbing/
+ *   5.当传入的transaction为nullptr时,latch、unlatch操作都不应该执行!(主要是iterator会存在这种问题)
  * TODO:改为二分查找
  */
 INDEX_TEMPLATE_ARGUMENTS
 B_PLUS_TREE_LEAF_PAGE_TYPE* BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost,IndexOpType indexOp,Transaction *transaction) {
-  LockRootPageId();
+  root_pgid_mutex_.lock();                                // 保护共享变量 root_page_id_
   Page* page=buffer_pool_manager_->FetchPage(root_page_id_);
-  LatchPage(page,indexOp,transaction);             // latch 根结点
-  UnLockRootPageId();
+  if(transaction) LatchPage(page,indexOp,transaction);    // latch 根结点
+  root_pgid_mutex_.unlock();
   
   BPlusTreePage* node=reinterpret_cast<BPlusTreePage*>(page->GetData());
   while (!node->IsLeafPage()){
@@ -479,15 +471,15 @@ B_PLUS_TREE_LEAF_PAGE_TYPE* BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, boo
     else page = buffer_pool_manager_->FetchPage(internal_node->Lookup(key,comparator_));
     
     // latch 当前结点(latch只能对Page,而不能对 BPlusTreePage)
-    LatchPage(page,indexOp,transaction);
+    if(transaction) LatchPage(page,indexOp,transaction);
 
     // 判断当前结点是否安全 => 安全则释放所有祖先上的latch(但不包括当前结点自身)
     node=reinterpret_cast<BPlusTreePage*>(page->GetData());
-    if(node->IsSafe(indexOp)){
+    if(node->IsSafe(indexOp) && transaction){
       UnLatchAncestors(page,indexOp,transaction);
     }
   }
-  return node;
+  return reinterpret_cast<LeafPage*>(node);
 }
 
 /*
@@ -679,7 +671,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::LatchPage(Page* page,IndexOpType indexOp,Transaction *transaction){
   if(indexOp == IndexOpType::FIND) page->RLatch();
   else page->WLatch();
-  transaction->AddIntoPageSet(page);
+  if(transaction) transaction->AddIntoPageSet(page);
 }
 
 /*
@@ -695,7 +687,7 @@ void BPLUSTREE_TYPE::UnLatchAncestors(Page* page,IndexOpType indexOp,Transaction
   while(!node->IsRootPage()){
     if(indexOp == IndexOpType::FIND) page->RUnlatch();
     else page->WUnlatch();
-    auto itr = find(transaction->GetPageSet()->begin(),transaction->GetPageSet()->end(),page);
+    auto itr = std::find(transaction->GetPageSet()->begin(),transaction->GetPageSet()->end(),page);
     transaction->GetPageSet()->erase(itr);
     // 找到上一个结点
     page = buffer_pool_manager_->FetchPage(node->GetParentPageId());
@@ -704,25 +696,25 @@ void BPLUSTREE_TYPE::UnLatchAncestors(Page* page,IndexOpType indexOp,Transaction
 
   if(indexOp == IndexOpType::FIND) page->RUnlatch();    // unlatch根结点
   else page->WUnlatch();
-  auto itr = find(transaction->GetPageSet()->begin(),transaction->GetPageSet()->end(),page);
+  auto itr = std::find(transaction->GetPageSet()->begin(),transaction->GetPageSet()->end(),page);
   transaction->GetPageSet()->erase(itr);
 }
 
 /*
- * 在对数据库的操作完成后调用
+ * 在对数据库的操作完成后调用,释放transaction中的Page...
  */ 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::FreeAllPagesInTxn(IndexOpType indexOp,Transaction *transaction){
   auto latched_pgset = transaction->GetPageSet();
   auto deleted_pgset = transaction->GetDeletedPageSet();
-  for(int i=0;i<latched_pgset->size();i++){
-    Page* page = latched_pgset[i];
+  for(size_t i=0;i<latched_pgset->size();i++){
+    Page* page = (*latched_pgset)[i];
     if(indexOp == IndexOpType::FIND) page->RUnlatch();
     else page->WUnlatch();
 
     // TODO:某个结点可能已经被删除,需要进行相应处理...
     page_id_t page_id = reinterpret_cast<BPlusTreePage*>(page->GetData())->GetPageId();
-    if(find(deleted_pgset->begin(),deleted_pgset->end(),page_id) != deleted_pgset->end()){
+    if(std::find(deleted_pgset->begin(),deleted_pgset->end(),page_id) != deleted_pgset->end()){
 
     }
   }

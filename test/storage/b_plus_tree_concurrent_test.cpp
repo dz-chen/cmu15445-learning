@@ -13,6 +13,7 @@
 #include "storage/index/b_plus_tree.h"
 
 namespace bustub {
+
 // helper function to launch multiple threads
 template <typename... Args>
 void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
@@ -92,7 +93,7 @@ void DeleteHelperSplit(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree
   delete transaction;
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
+TEST(BPlusTreeConcurrentTest, InsertTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -111,14 +112,17 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
   for (int64_t key = 1; key < scale_factor; key++) {
     keys.push_back(key);
   }
+
+  // the first arg is the num of threads; others are args of InsertHelper --by cdz
   LaunchParallelTest(2, InsertHelper, &tree, keys);
 
   std::vector<RID> rids;
   GenericKey<8> index_key;
+  Transaction *transaction = new Transaction(0);    // --by cdz
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
-    tree.GetValue(index_key, &rids);
+    tree.GetValue(index_key, &rids,transaction);
     EXPECT_EQ(rids.size(), 1);
 
     int64_t value = key & 0xFFFFFFFF;
@@ -140,12 +144,13 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete key_schema;
   delete disk_manager;
+  delete transaction;
   delete bpm;
   remove("test.db");
   remove("test.log");
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
+TEST(BPlusTreeConcurrentTest, InsertTest2) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -163,14 +168,15 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
   for (int64_t key = 1; key < scale_factor; key++) {
     keys.push_back(key);
   }
-  LaunchParallelTest(2, InsertHelperSplit, &tree, keys, 2);
+  LaunchParallelTest(2, InsertHelperSplit, &tree, keys, 2); // TODO:最后一个2有何作用? 
 
   std::vector<RID> rids;
   GenericKey<8> index_key;
+  Transaction *transaction = new Transaction(0);
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
-    tree.GetValue(index_key, &rids);
+    tree.GetValue(index_key, &rids,transaction);
     EXPECT_EQ(rids.size(), 1);
 
     int64_t value = key & 0xFFFFFFFF;
@@ -192,12 +198,13 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete key_schema;
   delete disk_manager;
+  delete transaction;
   delete bpm;
   remove("test.db");
   remove("test.log");
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest1) {
+TEST(BPlusTreeConcurrentTest, DeleteTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -240,7 +247,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest1) {
   remove("test.log");
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest2) {
+TEST(BPlusTreeConcurrentTest, DeleteTest2) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -284,7 +291,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest2) {
   remove("test.log");
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_MixTest) {
+TEST(BPlusTreeConcurrentTest, MixTest) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);

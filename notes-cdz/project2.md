@@ -58,21 +58,43 @@ buffer_pool_manager中的 page_table中存放的映射是否能在lru中,目前�
 暂时认为是val的个数  
 TODO:...待确认...  
 
+## Index_iterator中遍历的过程需要加锁吗?
+暂时未加  
+TODO...  
+
+## B+树中结点内部的record查找全部改为二分
+TODO...
+
 
 # tmp
 ## 复制粘贴常用
 ```
-// 编译可调试执行文件
+// cmake 生成makefile(debug版)
 cmake -DCMAKE_BUILD_TYPE=DEBUG ..
+
+// b_plus_tree_print_test 执行及调试
 make -j4 b_plus_tree_print_test
-
-// 链接一个特定库(asan用于检查内存泄漏)
-export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  &  ./test/b_plus_tree_print_test
-或者 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/b_plus_tree_print_test
-export LD_PRELOAD=          // 取消环境变量设置
-
-// gdb 调试
-gdb --args ./test/b_plus_tree_print_test --gtest_filter=BptTreeTest.UnitTest
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/b_plus_tree_print_test
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/b_plus_tree_print_test --gtest_filter=BptTreeTest.UnitTest
 b b_plus_tree_print_test.cpp:68
+
+// b_plus_tree_insert_test 执行及调试
+make -j4 b_plus_tree_insert_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/b_plus_tree_insert_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/b_plus_tree_insert_test --gtest_filter=BPlusTreeTests.InsertTest2
+b b_plus_tree_insert_test.cpp:18
+
+
+// b_plus_tree_insert_test 执行及调试
+make -j4 b_plus_tree_delete_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/b_plus_tree_delete_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/b_plus_tree_delete_test --gtest_filter=BPlusTreeTests.DeleteTest1
+b b_plus_tree_delete_test.cpp:18
+
+
+// b_plus_tree_concurrent_test 执行及调试
+make -j4 b_plus_tree_concurrent_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/b_plus_tree_concurrent_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/b_plus_tree_concurrent_test --gtest_filter=BPlusTreeConcurrentTest.InsertTest2
+b b_plus_tree_concurrent_test.cpp:98
 ```

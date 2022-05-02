@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iostream>
 
 #include "b_plus_tree_test_util.h"  // NOLINT
 #include "buffer/buffer_pool_manager.h"
@@ -12,7 +13,8 @@
 
 namespace bustub {
 
-TEST(BPlusTreeTests, DISABLED_InsertTest1) {
+// TEST(BPlusTreeTests, DISABLED_InsertTest1) {
+TEST(BPlusTreeTests, InsertTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -43,7 +45,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
-    tree.GetValue(index_key, &rids);
+    // tree.GetValue(index_key, &rids);
+    tree.GetValue(index_key, &rids,transaction);
     EXPECT_EQ(rids.size(), 1);
 
     int64_t value = key & 0xFFFFFFFF;
@@ -54,7 +57,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   int64_t current_key = start_key;
   index_key.SetFromInteger(start_key);
   for (auto iterator = tree.Begin(index_key); iterator != tree.end(); ++iterator) {
-    auto location = (*iterator).second;
+    auto location = (*iterator).second;     // *iterator解引用,得到的是MappingType类型
     EXPECT_EQ(location.GetPageId(), 0);
     EXPECT_EQ(location.GetSlotNum(), current_key);
     current_key = current_key + 1;
@@ -71,7 +74,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest2) {
+// TEST(BPlusTreeTests, DISABLED_InsertTest2) {
+TEST(BPlusTreeTests, InsertTest2) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -102,7 +106,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
-    tree.GetValue(index_key, &rids);
+    // tree.GetValue(index_key, &rids);
+    tree.GetValue(index_key, &rids,transaction);
     EXPECT_EQ(rids.size(), 1);
 
     int64_t value = key & 0xFFFFFFFF;

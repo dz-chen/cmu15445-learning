@@ -53,10 +53,11 @@ INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
         page_id_t next_page_id = leaf_node_->GetNextPageId();
         if(next_page_id == INVALID_PAGE_ID){    // 已经遍历完所有叶子结点中的记录
             leaf_node_ = nullptr;
+            index_ = 0; 
         }
         else{                                   // 否则进入下一个结点
             Page* next_page = buffer_pool_manager_->FetchPage(next_page_id);
-            leaf_node_ = reinterpret_cast<LEAF_PAGE_HEADER_SIZE*>(next_page->GetData());
+            leaf_node_ = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(next_page->GetData());
             index_ = 0;
         }
     }

@@ -184,7 +184,8 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) {
-  if(!Lookup(key,nullptr,comparator)) return GetSize();
+  ValueType tmp_val;
+  if(!Lookup(key,&tmp_val,comparator)) return GetSize();
   int idx = KeyIndex(key,comparator);
   int size=GetSize();
   // 元素往前移
@@ -205,10 +206,10 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
  *   1.删除后,若当前结点不满足最小要求,且相邻兄弟结点也无法借取kv,则将当前结点合并到兄弟结点;
  *   2.注意这是叶子结点;
  *   3.为了方便更新 next_page_id_,所以应该将当前page视作要删除的,recipient是其左侧的兄弟!
- * 
+ *   4.参数 buffer_pool_manager 由个人添加,与InternalPage保持一致,避免b_plus_tree.cpp中编译出错
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager) {
   int start=recipient->GetSize();
   int size=GetSize();
   for(int i=0;i<size;i++){
@@ -225,9 +226,11 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
 /*
  * Remove the first key & value pair from this page to "recipient" page.
  * recipient结点删除后kv不够,MoveFirstToEndOf意味着当前结点是recipient的右兄弟
+ * 注:
+ *   1.参数 buffer_pool_manager 由个人添加,与InternalPage保持一致,避免b_plus_tree.cpp中编译出错
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager) {
   // 将第一个kv复制给recipient
   recipient->CopyLastFrom(array[0]);
   
@@ -238,7 +241,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) 
   }
   SetSize(size-1);
 
-  // TODO:应该需要更新parent,但是接口没有设计出需要的参数...
+  // TODO:应该需要更新parent
   // TODO:但看书更新parent应该不是必须的...
 }
 
@@ -255,10 +258,12 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
 /*
  * Remove the last key & value pair from this page to "recipient" page.
  * recipient结点删除后kv不够,MoveLastToFrontOf意味着当前结点是recipient的左兄弟
+ * 注:
+ *   1.参数 buffer_pool_manager 由个人添加,与InternalPage保持一致,避免b_plus_tree.cpp中编译出错
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient) {
-  size=GetSize();
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient,BufferPoolManager *buffer_pool_manager) {
+  int size=GetSize();
   // recipient 复制元素
   recipient->CopyFirstFrom(array[size-1]);
 

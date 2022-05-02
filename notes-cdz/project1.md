@@ -1,15 +1,40 @@
 [toc]
 
 
-# 注意
+# 实现细节注意
+## LRU
+- `LRU的pin与unpin指的是当page被pin/unpin时LRU_Replacer的行为`:
+```
+当某个Page被pin时,它不能移出内存,因而LRU.pin()函数需要将该Page从LRU链表中剔除;
+当某个Page被unpin时,它可以被移出内存,因而LRU.unpin()函数需要将该Page加入LRU链表;
+```
+
+## 缓冲区管理
+- 对于page.h中Page类的理解:
+```
+1.Page 是RAM中缓冲区的基本单位;
+2.一个Page实体中,在不同时刻存放的Disk Page可能是不同的;Disk Page 即成员data_[];
+3.成员page_id_描述的是Disk Page的编号,如果当前Page实例中没有Disk Page,则page_id_设置为INVALID_PAGE_ID;
+4.成员pin_count_代表同时访问该页面的线程/进程数;
+```
+- 对于buffer_pool_manager.h中BufferPoolManager类的理解:
+```
+
+```
+
+## 磁盘管理
 - 磁盘管理位于 `src/storage/disk` 需要仔细阅读其实现  
 - 由于目前尚未真正往磁盘写数据,测试时disk_manager会打印一些IO错误,此为正常现象  
 - 
 
+
+
+# 知识点积累
+
 # 杂七杂八
 ## ASAN报错(ASan runtime does not come first in initial library list...) => fixed
 **问题描述**  
-当 cmake -DCMAKE_BUILD_TYPE=DEBUG .. 时报错
+当 cmake -DCMAKE_BUILD_TYPE=DEBUG .. ,则运行时报错
 ```
 ==26846==ASan runtime does not come first in initial library list; you should either link runtime to your application or manually preload it with LD_PRELOAD
 ```
