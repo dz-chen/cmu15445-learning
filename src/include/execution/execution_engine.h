@@ -32,6 +32,7 @@ class ExecutionEngine {
   bool Execute(const AbstractPlanNode *plan, std::vector<Tuple> *result_set, Transaction *txn,
                ExecutorContext *exec_ctx) {
     // construct executor
+    // 返回的是一个具体的executor(seq,insert,delete,aggregation等),视plan的类型而定
     auto executor = ExecutorFactory::CreateExecutor(exec_ctx, plan);
 
     // prepare

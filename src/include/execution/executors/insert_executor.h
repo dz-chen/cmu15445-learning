@@ -17,6 +17,7 @@
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
+#include "execution/executors/seq_scan_executor.h"
 #include "execution/plans/insert_plan.h"
 #include "storage/table/tuple.h"
 
@@ -45,7 +46,24 @@ class InsertExecutor : public AbstractExecutor {
   bool Next([[maybe_unused]] Tuple *tuple, RID *rid) override;
 
  private:
+  /* this func add by cdz */
+  void insert_tuple_and_index(Tuple& tuple,RID* rid);
+  
   /** The insert plan node to be executed. */
   const InsertPlanNode *plan_;
+  
+  /* below all added by cdz */
+  
+  // child_executor_ 可能为nullptr
+  std::unique_ptr<AbstractExecutor> child_executor_;
+
+  // tuples_也可能没有(取决于plan_类型)
+  std::vector<std::vector<Value>> tuples_;
+  std::vector<std::vector<Value>>::iterator iter_;
+
+  // 其他成员
+  TableMetadata* table_info_;
+  Transaction *txn_;
+  std::vector<IndexInfo*> index_infos_;  // B+树索引信息,一个表上可能有多个索引!
 };
 }  // namespace bustub

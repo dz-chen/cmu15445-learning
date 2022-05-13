@@ -23,6 +23,7 @@ namespace bustub {
 
 /**
  * SeqScanExecutor executes a sequential scan over a table.
+ * 一个executor 即一个 
  */
 class SeqScanExecutor : public AbstractExecutor {
  public:
@@ -35,6 +36,7 @@ class SeqScanExecutor : public AbstractExecutor {
 
   void Init() override;
 
+  /* 每调用一次Next,通过tuple,rid 返回一条结果 */
   bool Next(Tuple *tuple, RID *rid) override;
 
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); }
@@ -42,5 +44,14 @@ class SeqScanExecutor : public AbstractExecutor {
  private:
   /** The sequential scan plan node to be executed. */
   const SeqScanPlanNode *plan_;
+
+  /* add by cdz */
+  TableHeap* table_;            //  physical table on disk
+  TableIterator iter_;          // 用于遍历表中的所有tuple
+  Schema schema_;               // 整张表的schema
+
+
+  // 下为 父类中包含的成员
+  // ExecutorContext *exec_ctx_;
 };
 }  // namespace bustub

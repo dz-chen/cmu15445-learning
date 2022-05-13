@@ -25,7 +25,7 @@ enum class PlanType { SeqScan, IndexScan, Insert, Update, Delete, Aggregation, L
 /**
  * AbstractPlanNode represents all the possible types of plan nodes in our system.
  * Plan nodes are modeled as trees, so each plan node can have a variable number of children.
- * Per the Volcano model, the plan node receives the tuples of its children.
+ * Per the Volcano model(即iterator model), the plan node receives the tuples of its children.
  * The ordering of the children may matter.
  */
 class AbstractPlanNode {
@@ -59,6 +59,7 @@ class AbstractPlanNode {
    * and this tells you what schema this plan node's tuples will have.
    */
   const Schema *output_schema_;
+  
   /** The children of this plan node. */
   std::vector<const AbstractPlanNode *> children_;
 };

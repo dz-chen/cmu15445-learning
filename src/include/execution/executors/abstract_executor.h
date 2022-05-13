@@ -33,6 +33,8 @@ class AbstractExecutor {
   /**
    * Initializes this executor.
    * @warning This function must be called before Next() is called!
+   * The Init method is for setting up internal state about the invocation of the operator 
+   * (e.g., retrieving the corresponding table to scan)
    */
   virtual void Init() = 0;
 

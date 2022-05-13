@@ -23,6 +23,7 @@
 namespace bustub {
 /**
  * ExecutorContext stores all the context necessary to run an executor.
+ * 存储executor相关的上下文环境,包括:transaction,catalog,bufferpoolmanager,transactionmanager,lockmanager
  */
 class ExecutorContext {
  public:

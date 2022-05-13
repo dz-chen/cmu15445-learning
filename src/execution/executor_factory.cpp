@@ -28,6 +28,9 @@
 
 namespace bustub {
 
+/**
+ * 根据查询计划的具体类型,生成相应的executor
+ */ 
 std::unique_ptr<AbstractExecutor> ExecutorFactory::CreateExecutor(ExecutorContext *exec_ctx,
                                                                   const AbstractPlanNode *plan) {
   switch (plan->GetType()) {

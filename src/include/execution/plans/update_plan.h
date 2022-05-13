@@ -24,6 +24,7 @@ enum class UpdateType { Add, Set };
 
 /**
  * Metadata about an Update.
+ * 注: 一个 UpdateInfo 只是描述了一个属性上的更新...
  */
 struct UpdateInfo {
   UpdateInfo(UpdateType type, int update_val) : type_(type), update_val_(update_val) {}

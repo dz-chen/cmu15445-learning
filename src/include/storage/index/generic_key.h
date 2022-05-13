@@ -32,7 +32,12 @@ class GenericKey {
   inline void SetFromKey(const Tuple &tuple) {
     // intialize to 0
     memset(data_, 0, KeySize);
-    memcpy(data_, tuple.GetData(), tuple.GetLength());
+    // memcpy(data_, tuple.GetData(), tuple.GetLength()); // tuple.GetLength() 可能会超限..
+    size_t size = KeySize < tuple.GetLength() ? KeySize : tuple.GetLength();
+    if(KeySize < tuple.GetLength()){
+      std::cout<<"warning:KeySize < tuple.size in SetFromKey(),the former is "<<KeySize<<" the latter is "<<tuple.GetLength()<<std::endl;
+    }
+    memcpy(data_, tuple.GetData(), size);
   }
 
   // NOTE: for test purpose only

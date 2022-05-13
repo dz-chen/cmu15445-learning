@@ -24,6 +24,7 @@ namespace bustub {
  * InsertPlanNode identifies a table that should be inserted into.
  * The values to be inserted are either embedded into the InsertPlanNode itself, i.e. a "raw insert",
  * or will come from the child of the InsertPlanNode. To simplify the assignment, InsertPlanNode has at most one child.
+ * 没有子PlanNode...
  */
 class InsertPlanNode : public AbstractPlanNode {
  public:
@@ -33,7 +34,9 @@ class InsertPlanNode : public AbstractPlanNode {
    * @param table_oid the identifier of the table to be inserted into
    */
   InsertPlanNode(std::vector<std::vector<Value>> &&raw_values, table_oid_t table_oid)
-      : AbstractPlanNode(nullptr, {}), raw_values_(std::move(raw_values)), table_oid_(table_oid) {}
+      : AbstractPlanNode(nullptr, {}), raw_values_(std::move(raw_values)), table_oid_(table_oid) {
+        // AbstractPlanNode(nullptr, {}) 说明没有子PlanNode...
+  }
 
   /**
    * Creates a new insert plan node for inserting values from a child plan.
@@ -72,7 +75,7 @@ class InsertPlanNode : public AbstractPlanNode {
 
  private:
   /** The raw values embedded in this insert plan. */
-  std::vector<std::vector<Value>> raw_values_;
+  std::vector<std::vector<Value>> raw_values_;      // 将要插入的多个元组
   /** The table to be inserted into. */
   table_oid_t table_oid_;
 };

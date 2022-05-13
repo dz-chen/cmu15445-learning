@@ -32,14 +32,18 @@ class ComparisonExpression : public AbstractExpression {
  public:
   /** Creates a new comparison expression representing (left comp_type right). */
   ComparisonExpression(const AbstractExpression *left, const AbstractExpression *right, ComparisonType comp_type)
-      : AbstractExpression({left, right}, TypeId::BOOLEAN), comp_type_{comp_type} {}
+      : AbstractExpression({left, right}, TypeId::BOOLEAN), comp_type_{comp_type} {
+        // 注意: {left, right} 构成 AbstractExpression(children,ret_type) 的参数 children !!!
+      }
 
+  /* 简单比较 */
   Value Evaluate(const Tuple *tuple, const Schema *schema) const override {
-    Value lhs = GetChildAt(0)->Evaluate(tuple, schema);
-    Value rhs = GetChildAt(1)->Evaluate(tuple, schema);
+    Value lhs = GetChildAt(0)->Evaluate(tuple, schema);   // 返回比较的左边元素
+    Value rhs = GetChildAt(1)->Evaluate(tuple, schema);   // 返回比较的右边元素
     return ValueFactory::GetBooleanValue(PerformComparison(lhs, rhs));
   }
 
+  /* 连接 */
   Value EvaluateJoin(const Tuple *left_tuple, const Schema *left_schema, const Tuple *right_tuple,
                      const Schema *right_schema) const override {
     Value lhs = GetChildAt(0)->EvaluateJoin(left_tuple, left_schema, right_tuple, right_schema);
@@ -47,6 +51,7 @@ class ComparisonExpression : public AbstractExpression {
     return ValueFactory::GetBooleanValue(PerformComparison(lhs, rhs));
   }
 
+  /* 聚合 */
   Value EvaluateAggregate(const std::vector<Value> &group_bys, const std::vector<Value> &aggregates) const override {
     Value lhs = GetChildAt(0)->EvaluateAggregate(group_bys, aggregates);
     Value rhs = GetChildAt(1)->EvaluateAggregate(group_bys, aggregates);

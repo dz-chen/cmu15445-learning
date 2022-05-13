@@ -19,6 +19,7 @@
 namespace bustub {
 /**
  * ConstantValueExpression represents constants.
+ * 这个表达式 Evaluate() 将直接返回一个 常数
  */
 class ConstantValueExpression : public AbstractExpression {
  public:

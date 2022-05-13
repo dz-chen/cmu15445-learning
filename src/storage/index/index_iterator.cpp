@@ -45,6 +45,10 @@ const MappingType &INDEXITERATOR_TYPE::operator*() {
     return leaf_node_->GetItem(index_);
 }
 
+/*
+ * 注意:operator++()是前置自增 => ++iter
+ *     operator++(int)是后置自增 => iter++
+ */ 
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE &INDEXITERATOR_TYPE::operator++() {
     index_++;

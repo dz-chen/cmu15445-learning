@@ -43,7 +43,7 @@ class IndexScanPlanNode : public AbstractPlanNode {
  private:
   /** The predicate that all returned tuples must satisfy. */
   const AbstractExpression *predicate_;
-  /** The table whose tuples should be scanned. */
+  /** The table whose tuples should be scanned. => 该索引的编号 */
   index_oid_t index_oid_;
 };
 

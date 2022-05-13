@@ -42,7 +42,7 @@ class BPlusTreeIndex : public Index {
  protected:
   // comparator for key
   KeyComparator comparator_;
-  // container
+  // container => B+树
   BPlusTree<KeyType, ValueType, KeyComparator> container_;
 };
 

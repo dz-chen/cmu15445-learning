@@ -26,7 +26,10 @@ using index_oid_t = uint32_t;
  */
 struct TableMetadata {
   TableMetadata(Schema schema, std::string name, std::unique_ptr<TableHeap> &&table, table_oid_t oid)
-      : schema_(std::move(schema)), name_(std::move(name)), table_(std::move(table)), oid_(oid) {}
+      : schema_(std::move(schema)), name_(std::move(name)), table_(std::move(table)), oid_(oid) {
+
+  }
+
   Schema schema_;                     // table 的属性列
   std::string name_;                  // 表名
   std::unique_ptr<TableHeap> table_;  // TableHeap represents a physical table on disk, This is just a doubly-linked list of pages.
@@ -50,7 +53,7 @@ struct IndexInfo {
   std::unique_ptr<Index> index_;    // Index内含 IndexMetadata
   index_oid_t index_oid_;           // 索引id
   std::string table_name_;          // 本索引属于哪个表
-  const size_t key_size_;           // 用于索引的key的大小
+  const size_t key_size_;           // 用于索引的key的大小(字节数)
 };
 
 /**
@@ -66,7 +69,9 @@ class Catalog {
    * @param log_manager the log manager in use by the system
    */
   Catalog(BufferPoolManager *bpm, LockManager *lock_manager, LogManager *log_manager)
-      : bpm_{bpm}, lock_manager_{lock_manager}, log_manager_{log_manager} {}
+      : bpm_{bpm}, lock_manager_{lock_manager}, log_manager_{log_manager} {
+    
+  }
 
   /**
    * Create a new table and return its metadata.
@@ -77,11 +82,15 @@ class Catalog {
    */
   TableMetadata *CreateTable(Transaction *txn, const std::string &table_name, const Schema &schema) {
     BUSTUB_ASSERT(names_.count(table_name) == 0, "Table names should be unique!");
-    names_[table_name] = next_table_oid_;
-    // TODO:TableMetadata 中的 TableHeap成员如何解决 ? 如何知道 first_page_id_ ?
-    tables_[next_table_oid_] = std::make_unique<TableMetadata>(schema,table_name,nullptr,next_table_oid_);
+    table_oid_t oid = next_table_oid_;
     next_table_oid_++;
-    return tables_[next_table_oid_].get();
+    names_[table_name] = oid;
+    // TODO:TableMetadata 中的 TableHeap成员如何解决 ? 如何知道 first_page_id_ ?
+    // tables_[oid] = std::make_unique<TableMetadata>(schema,table_name,nullptr,oid);
+    // fix 2022.5.10: TableHeap有两个构造函数,直接使用不含参数 first_page_id_ 的构造函数
+    std::unique_ptr<TableHeap> tableHeap(new TableHeap(bpm_,lock_manager_, log_manager_,txn));
+    tables_[oid] = std::make_unique<TableMetadata>(schema,table_name,std::move(tableHeap),oid);
+    return tables_[oid].get();
   }
 
   /** @return table metadata by name */
@@ -107,28 +116,42 @@ class Catalog {
    * @param key_attrs key attributes,key中的各attr 在table schema中是第几个attr
    * @param keysize size of the key
    * @return a pointer to the metadata of the new table
+   * 记得将数据表中的内容,添加到B+树索引中...
    */
   template <class KeyType, class ValueType, class KeyComparator>
   IndexInfo *CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name,
                          const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs,
                          size_t keysize) {
     BUSTUB_ASSERT(names_.count(table_name) > 0, "input table name does not exist!");
-    // 添加 index_names_
-    if(index_names_.count(table_name)==0){      // 如果该table暂时创建过索引
+    index_oid_t oid = next_index_oid_;
+    next_index_oid_++;
+    ////////////// 1. 添加 index_names_
+    if(index_names_.count(table_name)==0){      // 如果该table暂未创建过索引
       std::unordered_map<std::string, index_oid_t> tmpMap;
-      tmpMap[index_name] = next_index_oid_;
+      tmpMap[index_name] = oid;
       index_names_[table_name] = tmpMap;
     }
     else{                                       // 在该表上建立过索引
-      index_names_[table_name][index_name] = next_index_oid_;
+      index_names_[table_name][index_name] = oid;
     }
 
-    // 添加 indexes_
-    IndexMetadata* meta_data = new IndexMetadata(index_name,table_name,&schema,key_attrs);
-    std::unique_ptr<Index> index(new Index(meta_data));     // TODO:Index是抽象函数,此处该如何解决 ?
-    indexes_[next_index_oid_] = std::make_unique<IndexInfo>(key_schema,index_name,index,next_table_oid_,table_name,keysize);
-    next_index_oid_++;
-    return indexes_[next_index_oid_].get();
+    //////////////  2.添加 indexes_
+    IndexMetadata* metadata = new IndexMetadata(index_name,table_name,&schema,key_attrs);
+    // TODO:Index是抽象函数,此处该如何解决 ?
+    // std::unique_ptr<Index> index(new Index(meta_data));     
+    // indexes_[oid] = std::make_unique<IndexInfo>(key_schema,index_name,index,oid,table_name,keysize);
+    // fix 2022.5.10: 本文使用的B+树索引,应该直接创建对应的具体索引!!!
+    std::unique_ptr<Index> bpTree_index(new BPlusTreeIndex<KeyType,ValueType,KeyComparator>(metadata,bpm_));
+    // 为数据表(table_name) 中的数据创建索引(根据key_schema),将索引信息添加到B+树中;
+    TableHeap* tableHeap = GetTable(table_name)->table_.get();
+    for(auto it=tableHeap->Begin(txn); it!=tableHeap->End(); it++){
+      // it 的 -> 运算符已被重载, it就是表中Tuple的指针
+      Tuple key = it->KeyFromTuple(schema, key_schema, key_attrs);
+      bpTree_index->InsertEntry(key, it->GetRid(), txn);
+    }
+    // 将bpTree_index添加到indexes_中
+    indexes_[oid] = std::make_unique<IndexInfo>(key_schema,index_name,std::move(bpTree_index),oid,table_name,keysize);
+    return indexes_[oid].get();
   }
 
   IndexInfo *GetIndex(const std::string &index_name, const std::string &table_name) {

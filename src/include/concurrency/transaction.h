@@ -55,7 +55,7 @@ enum class WType { INSERT = 0, DELETE, UPDATE };
 
 class TableHeap;
 class Catalog;
-using table_oid_t = uint32_t;
+using table_oid_t = uint32_t;   // table identifier, 标志一个database table
 using index_oid_t = uint32_t;
 
 /**

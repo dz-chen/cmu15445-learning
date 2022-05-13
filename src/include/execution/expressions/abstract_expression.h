@@ -22,6 +22,7 @@ namespace bustub {
 /**
  * AbstractExpression is the base class of all the expressions in the system.
  * Expressions are modeled as trees, i.e. every expression may have a variable number of children.
+ * 每个 AbstractExpression -> Evaluate() 后就是以该结点为根的表达式求值后的结果
  */
 class AbstractExpression {
  public:

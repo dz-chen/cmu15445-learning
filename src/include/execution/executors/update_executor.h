@@ -56,7 +56,7 @@ class UpdateExecutor : public AbstractExecutor {
     uint32_t col_count = schema.GetColumnCount();
     std::vector<Value> values;
     for (uint32_t idx = 0; idx < col_count; idx++) {
-      if (update_attrs->find(idx) == update_attrs->end()) {
+      if (update_attrs->find(idx) == update_attrs->end()) {     // 如果这个属性不需要更新...
         values.emplace_back(old_tup.GetValue(&schema, idx));
       } else {
         UpdateInfo info = update_attrs->at(idx);
@@ -75,6 +75,8 @@ class UpdateExecutor : public AbstractExecutor {
     return Tuple(values, &schema);
   }
 
+  void updataIndexes( Tuple& old_tup, Tuple& new_tup, const RID& rid);
+
  private:
   /** The update plan node to be executed. */
   const UpdatePlanNode *plan_;
@@ -82,5 +84,9 @@ class UpdateExecutor : public AbstractExecutor {
   const TableMetadata *table_info_;
   /** The child executor to obtain value from. */
   std::unique_ptr<AbstractExecutor> child_executor_;
+
+  // below all add by cdz
+  std::vector<IndexInfo*> index_infos_;  // B+树索引信息,一个表上可能有多个索引!
+  Transaction* txn_;
 };
 }  // namespace bustub
