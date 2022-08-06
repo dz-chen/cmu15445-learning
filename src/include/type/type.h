@@ -40,6 +40,7 @@ class Type {
   static Value GetMinValue(TypeId type_id);
   static Value GetMaxValue(TypeId type_id);
 
+  // 单例模式!
   inline static Type *GetInstance(TypeId type_id) { return k_types[type_id]; }
 
   inline TypeId GetTypeId() const { return type_id_; }
@@ -112,6 +113,6 @@ class Type {
   // The actual type ID
   TypeId type_id_;
   // Singleton instances.
-  static Type *k_types[14];
+  static Type *k_types[14];  // k_types[]的初始化见 type.cpp
 };
 }  // namespace bustub

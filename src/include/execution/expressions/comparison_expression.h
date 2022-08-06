@@ -43,10 +43,15 @@ class ComparisonExpression : public AbstractExpression {
     return ValueFactory::GetBooleanValue(PerformComparison(lhs, rhs));
   }
 
-  /* 连接 */
+  /**
+   * 连接
+   * 这里的tuple是完整的tuple,而schema是内表/外表查询结果的schema(不一定是包含所有列,也不一定只有用于比较的那个列)
+   */
   Value EvaluateJoin(const Tuple *left_tuple, const Schema *left_schema, const Tuple *right_tuple,
                      const Schema *right_schema) const override {
+    // GetChildAt(0) 得到的是外表用于比较的那个列对应的 ColumnValueExpression(但是参数传入的schema可能不止一个列!!!)
     Value lhs = GetChildAt(0)->EvaluateJoin(left_tuple, left_schema, right_tuple, right_schema);
+    // GetChildAt(1) 得到的是内表用于比较的那个列对应的 ColumnValueExpression(但是参数传入的schema可能不止一个列!!!)
     Value rhs = GetChildAt(1)->EvaluateJoin(left_tuple, left_schema, right_tuple, right_schema);
     return ValueFactory::GetBooleanValue(PerformComparison(lhs, rhs));
   }

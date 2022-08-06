@@ -265,6 +265,9 @@ void TablePage::RollbackDelete(const RID &rid, Transaction *txn, LogManager *log
   }
 }
 
+/**
+ * 这个过程中完成了tuple内容(data_等)的填充!
+ */ 
 bool TablePage::GetTuple(const RID &rid, Tuple *tuple, Transaction *txn, LockManager *lock_manager) {
   // Get the current slot number.
   uint32_t slot_num = rid.GetSlotNum();

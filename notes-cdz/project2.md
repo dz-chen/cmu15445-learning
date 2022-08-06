@@ -4,7 +4,7 @@
 ## B+树数据结构
 - 从测试代码递归往下看,更容易理解;  
 - bustub中B+树的叶子结点中的val只是RecordId,是`非聚簇索引`;  
-- bustub不支持重复键;  
+- `bustub不支持重复键`;  
 - 在bustub中,对于内部结点,第一个key是落单的;对于叶子结点,所有kv都是成对的;详见b_plus_tree_internal_page.h、详见b_plus_tree_leaf_page.h;  
 - 内部结点的每个key,都对应了一个叶子结点中的最小值;
 - 内部结点的第一个kv对中只存储了val,没有key,`但本质上第一个kv对的key是父结点中指向当前内部结点的kv对中的那个key`;

@@ -41,6 +41,7 @@ class Value {
   friend class VarlenType;
 
  public:
+  // 构造函数
   explicit Value(const TypeId type) : manage_data_(false), type_id_(type) { size_.len_ = BUSTUB_VALUE_NULL; }
   // BOOLEAN and TINYINT
   Value(TypeId type, int8_t i);
@@ -137,6 +138,8 @@ class Value {
   // Create a copy of this value
   inline Value Copy() const { return Type::GetInstance(type_id_)->Copy(*this); }
 
+
+  // 成员变量 
  protected:
   // The actual value item
   union Val {
@@ -149,15 +152,15 @@ class Value {
     uint64_t timestamp_;
     char *varlen_;
     const char *const_varlen_;
-  } value_;
+  } value_;   // 存储实际数据
 
   union {
     uint32_t len_;
     TypeId elem_type_id_;
-  } size_;
+  } size_;  // 字节数,或者typeid
 
-  bool manage_data_;
+  bool manage_data_;  // true则数据使用varlen_存储,size_为len_; false则数据使用基本类型存储,size_为typeid
   // The data type
-  TypeId type_id_;
+  TypeId type_id_;  // 数据类型
 };
 }  // namespace bustub

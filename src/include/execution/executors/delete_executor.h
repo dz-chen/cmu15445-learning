@@ -52,7 +52,7 @@ class DeleteExecutor : public AbstractExecutor {
   /** The child executor to obtain rid from. */
   std::unique_ptr<AbstractExecutor> child_executor_;
 
-  // bolow add by cdz
+  /* add by cdz */
   TableMetadata *table_info_;
   std::vector<IndexInfo*> index_infos_;  // B+树索引信息,一个表上可能有多个索引!
   Transaction* txn_;

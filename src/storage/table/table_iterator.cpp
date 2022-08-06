@@ -59,6 +59,7 @@ TableIterator &TableIterator::operator++() {
   tuple_->rid_ = next_tuple_rid;
 
   if (*this != table_heap_->End()) {
+    // GetTuple 填充了 tuple_ 的内容...
     table_heap_->GetTuple(tuple_->rid_, tuple_, txn_);
   }
   // release until copy the tuple

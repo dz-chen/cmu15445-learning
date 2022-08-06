@@ -32,6 +32,7 @@ class TransactionManager;
  * LockManager handles transactions asking for locks on records.
  */
 class LockManager {
+  // 共享锁,排它锁
   enum class LockMode { SHARED, EXCLUSIVE };
 
   class LockRequest {

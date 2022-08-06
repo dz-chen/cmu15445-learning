@@ -42,12 +42,16 @@ class AggregateValueExpression : public AbstractExpression {
     BUSTUB_ASSERT(false, "Aggregation should only refer to group-by and aggregates.");
   }
 
+  /**
+   * 可见,输入的 aggregates 就是计算好的 count,sum,min,max
+   * EvaluateAggregate 只是返回某个结果而已
+   */ 
   Value EvaluateAggregate(const std::vector<Value> &group_bys, const std::vector<Value> &aggregates) const override {
     return is_group_by_term_ ? group_bys[term_idx_] : aggregates[term_idx_];
   }
 
  private:
-  bool is_group_by_term_;
-  uint32_t term_idx_;
+  bool is_group_by_term_;     // 是否为 groupBy 子句
+  uint32_t term_idx_;         // 0,1,2,3 => count,sum,min,max
 };
 }  // namespace bustub

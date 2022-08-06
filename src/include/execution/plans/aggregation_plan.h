@@ -27,7 +27,7 @@ enum class AggregationType { CountAggregate, SumAggregate, MinAggregate, MaxAggr
 /**
  * AggregationPlanNode represents the various SQL aggregation functions.
  * For example, COUNT(), SUM(), MIN() and MAX().
- * To simplfiy this project, AggregationPlanNode must always have exactly one child.
+ * To simplfiy this project, AggregationPlanNode must always have exactly one child(child用于scan 参与aggrgatede的元组).
  */
 class AggregationPlanNode : public AbstractPlanNode {
  public:
@@ -76,12 +76,21 @@ class AggregationPlanNode : public AbstractPlanNode {
   const std::vector<AggregationType> &GetAggregateTypes() const { return agg_types_; }
 
  private:
-  const AbstractExpression *having_;
-  std::vector<const AbstractExpression *> group_bys_;
-  std::vector<const AbstractExpression *> aggregates_;
+  // ComparisonExpression, having子句中的比较条件!
+  const AbstractExpression *having_;                    
+  // ColumnValueExpression, group by 子句中的列, group by colB => 则 group_bys_ 就是 {colB},用于获取该列的值
+  std::vector<const AbstractExpression *> group_bys_;   
+  // ColumnValueExpression, 参与普通聚合的列 count(colA),sum(colC) => 则 aggregates_ 就是 {colA,colC},用于获取该列的值
+  std::vector<const AbstractExpression *> aggregates_;  
+  // agg_types_ 四种: count,sum,min,max
   std::vector<AggregationType> agg_types_;
 };
 
+/**
+ * AggregateKey就是 SimpleAggregationHashTable 中的key,用于确定group by分类后的分组(一个key对应一个分组);
+ * 不过这个key可能是由多个属性组合计算后所得(或者说这些属性共同构成key);
+ * key对应的val(AggregateValue),就是当前分组内的count,sum,max,min统计结果;
+ */ 
 struct AggregateKey {
   std::vector<Value> group_bys_;
 
@@ -100,6 +109,12 @@ struct AggregateKey {
   }
 };
 
+/**
+ * AggregateValue 有的两个用处:
+ * 1.表示当前元组中参与聚合的列的取值 => 这种情况下是 MakeVal()函数的返回值;
+ * 2.表示当前group by分组内 count,sum,min,nax统计结果,这种情况下是 SimpleAggregationHashTable 的 val;
+ * 注: 可参考 CombineAggregateValues()进行理解
+ */ 
 struct AggregateValue {
   std::vector<Value> aggregates_;
 };
@@ -109,6 +124,9 @@ namespace std {
 
 /**
  * Implements std::hash on AggregateKey.
+ * 本质是为自定义的类型快速生成hash;
+ * 类似于Java中修改equals方法后必须修改hashCode()方法;  
+ * 参考:https://blog.csdn.net/strdhgthbbh/article/details/113481762
  */
 template <>
 struct hash<bustub::AggregateKey> {

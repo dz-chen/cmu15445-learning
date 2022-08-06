@@ -153,6 +153,9 @@ void TableHeap::RollbackDelete(const RID &rid, Transaction *txn) {
   buffer_pool_manager_->UnpinPage(page->GetTablePageId(), true);
 }
 
+/**
+ * 这个过程中填充了tuple的data_等内容...
+ */ 
 bool TableHeap::GetTuple(const RID &rid, Tuple *tuple, Transaction *txn) {
   // Find the page which contains the tuple.
   auto page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(rid.GetPageId()));
@@ -163,7 +166,7 @@ bool TableHeap::GetTuple(const RID &rid, Tuple *tuple, Transaction *txn) {
   }
   // Read the tuple from the page.
   page->RLatch();
-  bool res = page->GetTuple(rid, tuple, txn, lock_manager_);
+  bool res = page->GetTuple(rid, tuple, txn, lock_manager_); 
   page->RUnlatch();
   buffer_pool_manager_->UnpinPage(rid.GetPageId(), false);
   return res;

@@ -61,10 +61,18 @@ class NestedIndexJoinPlanNode : public AbstractPlanNode {
 
  private:
   /** The nested index join predicate. */
-  const AbstractExpression *predicate_;
+  const AbstractExpression *predicate_; // 根据测试代码,这个predicate_比较的其实只是用于连接的两个列,故需要有那两个列的schema
   table_oid_t inner_table_oid_;
   const std::string index_name_;
-  const Schema *outer_table_schema_;
-  const Schema *inner_table_schema_;
+  const Schema *outer_table_schema_;    // 最终要从外表查询到的结果的shema
+  const Schema *inner_table_schema_;    // 最终要从内表查询到的结果的shema
+  /**
+   * 比如:
+   * 外表schema为 colA,colB,colC,colD <=> outer_table_schema_为colA,colB
+   * (但是外表在seqScan扫描时的schema返回结果为  colA,colB,colC,colD )
+   * 内表schema为 col1,col2,col3,col4 <=> inner_table_schema_为col1,col2
+   * 连接的参数条件为 colA=col1
+   * 最终输出结果为 colA,colB,col1,col2
+   */ 
 };
 }  // namespace bustub

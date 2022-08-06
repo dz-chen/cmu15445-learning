@@ -95,7 +95,7 @@ class Tuple {
   bool allocated_{false};  // is allocated?
   RID rid_{};              // if pointing to the table heap, the rid is valid
   uint32_t size_{0};
-  char *data_{nullptr};
+  char *data_{nullptr};     // 指向真正元组数据的指针
 };
 
 }  // namespace bustub

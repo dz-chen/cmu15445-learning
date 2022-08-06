@@ -44,7 +44,7 @@ class ExecutionEngine {
       RID rid;
       while (executor->Next(&tuple, &rid)) {
         if (result_set != nullptr) {
-          result_set->push_back(tuple);
+          result_set->emplace_back(tuple);
         }
       }
     } catch (Exception &e) {

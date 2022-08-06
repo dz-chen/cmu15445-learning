@@ -29,6 +29,9 @@
 namespace bustub {
 /**
  * A simplified hash table that has all the necessary functionality for aggregations.
+ * AggregateKey就是 SimpleAggregationHashTable 中的key,用于确定group by分类后的分组;
+ * 不过这个key可能是由多个属性组合计算后所得(或者说这些属性共同构成key);
+ * 最终hashtable中的一个bucket,存放的AggregateValue就是当前分组内的count,sum,max,min统计结果; 
  */
 class SimpleAggregationHashTable {
  public:
@@ -41,7 +44,10 @@ class SimpleAggregationHashTable {
                              const std::vector<AggregationType> &agg_types)
       : agg_exprs_{agg_exprs}, agg_types_{agg_types} {}
 
-  /** @return the initial aggregrate value for this aggregation executor */
+  /** 
+   * @return the initial aggregrate value for this aggregation executor 
+   * 初始化聚合结果 => count,min,max,sum(他们是在同一趟扫描中完成)
+   */
   AggregateValue GenerateInitialAggregateValue() {
     std::vector<Value> values;
     for (const auto &agg_type : agg_types_) {
@@ -67,7 +73,10 @@ class SimpleAggregationHashTable {
     return {values};
   }
 
-  /** Combines the input into the aggregation result. */
+  /** 
+   * Combines the input into the aggregation result. 
+   * 即在一趟扫描的每一步中, 统计当前聚合结果: count,sum,min,max 
+   */
   void CombineAggregateValues(AggregateValue *result, const AggregateValue &input) {
     for (uint32_t i = 0; i < agg_exprs_.size(); i++) {
       switch (agg_types_[i]) {
@@ -95,9 +104,10 @@ class SimpleAggregationHashTable {
    * Inserts a value into the hash table and then combines it with the current aggregation.
    * @param agg_key the key to be inserted
    * @param agg_val the value to be inserted
+   * 将当前轮次遍历 添加到结果中(HASH表)
    */
   void InsertCombine(const AggregateKey &agg_key, const AggregateValue &agg_val) {
-    if (ht.count(agg_key) == 0) {
+    if (ht.count(agg_key) == 0) {   // count()计算当前map中的元素个数
       ht.insert({agg_key, GenerateInitialAggregateValue()});
     }
     CombineAggregateValues(&ht[agg_key], agg_val);
@@ -172,18 +182,31 @@ class AggregationExecutor : public AbstractExecutor {
 
   bool Next(Tuple *tuple, RID *rid) override;
 
-  /** @return the tuple as an AggregateKey */
+  /**
+   *  @return the tuple as an AggregateKey 
+   * 返回的 AggregateKey 即 group by 子句中所有列的取值
+   * 对于不含group by 子句的聚合,每次总是返回同一个key
+   */
   AggregateKey MakeKey(const Tuple *tuple) {
     std::vector<Value> keys;
+    // plan_->GetGroupBys() 返回的是group by 子句对应的列
+    // expr 是 ColumnValueExpression, 故keys 就是 group by 子句中那些列的取值
     for (const auto &expr : plan_->GetGroupBys()) {
       keys.emplace_back(expr->Evaluate(tuple, child_->GetOutputSchema()));
     }
+    // 对于 不含 group by的 聚合,plan_->GetGroupBys() size为0,不会进入for循环
+    //最终hash表中只有一个 AggregateKey, 故所有聚合结果都在该key对应的 val 中
     return {keys};
   }
 
-  /** @return the tuple as an AggregateValue */
+  /**
+   *  @return the tuple as an AggregateValue
+   *  返回参与聚合的列的取值
+   */
   AggregateValue MakeVal(const Tuple *tuple) {
     std::vector<Value> vals;
+    // 每个expr都是 AggregateValueExpression
+    // vals 即 要统计聚合结果的列的 取值
     for (const auto &expr : plan_->GetAggregates()) {
       vals.emplace_back(expr->Evaluate(tuple, child_->GetOutputSchema()));
     }
@@ -194,10 +217,14 @@ class AggregationExecutor : public AbstractExecutor {
   /** The aggregation plan node. */
   const AggregationPlanNode *plan_;
   /** The child executor whose tuples we are aggregating. */
-  std::unique_ptr<AbstractExecutor> child_;
+  std::unique_ptr<AbstractExecutor> child_;     // 用于查询做聚合的数据
+
   /** Simple aggregation hash table. */
   // Uncomment me! SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
+
   /** Simple aggregation hash table iterator. */
   // Uncomment me! SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
 };
 }  // namespace bustub
