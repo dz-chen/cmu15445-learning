@@ -104,10 +104,10 @@ class IndexWriteRecord {
  */
 enum class AbortReason {
   LOCK_ON_SHRINKING,          // can not take locks in the shrinking state
-  UNLOCK_ON_SHRINKING,        // can not excute unlock in the shrinking state (应该是在此阶段不能释放没有获得过的锁,正常情况可释放)
+  UNLOCK_ON_SHRINKING,        // can not excute unlock in the shrinking state (不理解,UNLOCK_ON_GROWING?? 不使用)
   UPGRADE_CONFLICT,           // another transaction is already waiting to upgrade its lock
   DEADLOCK,
-  LOCKSHARED_ON_READ_UNCOMMITTED
+  LOCKSHARED_ON_READ_UNCOMMITTED  // READ_UNCOMMITED有所有访问权限,不用/不应该上读锁
 };
 
 /**
