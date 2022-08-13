@@ -32,35 +32,38 @@ void CheckTxnLockSize(Transaction *txn, size_t shared_size, size_t exclusive_siz
 }
 
 // Basic shared lock test under REPEATABLE_READ
+// 注意 REPEATABLE_READ ; 目前只是状态检查...
 void BasicTest1() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
 
   std::vector<RID> rids;
   std::vector<Transaction *> txns;
-  int num_rids = 10;
+  int num_rids = 10;      // 10个 record
   for (int i = 0; i < num_rids; i++) {
     RID rid{i, static_cast<uint32_t>(i)};
     rids.push_back(rid);
-    txns.push_back(txn_mgr.Begin());
+    txns.push_back(txn_mgr.Begin());  // txn_mgr.Begin() 新建事务
     EXPECT_EQ(i, txns[i]->GetTransactionId());
   }
-  // test
-
+  // test => 每个task实例检查一个 txn
   auto task = [&](int txn_id) {
     bool res;
+    // txn_id 尝试对每个record 获取共享锁
     for (const RID &rid : rids) {
       res = lock_mgr.LockShared(txns[txn_id], rid);
       EXPECT_TRUE(res);
-      CheckGrowing(txns[txn_id]);
+      CheckGrowing(txns[txn_id]);     // txns[txn_id] 是否处于 growing 状态
     }
+    // txn_id 释放每个record上的锁
     for (const RID &rid : rids) {
       res = lock_mgr.Unlock(txns[txn_id], rid);
       EXPECT_TRUE(res);
-      CheckShrinking(txns[txn_id]);
+      CheckShrinking(txns[txn_id]); // txns[txn_id] 是否处于 shrinking 状态
     }
+    // 提交 txn_id
     txn_mgr.Commit(txns[txn_id]);
-    CheckCommitted(txns[txn_id]);
+    CheckCommitted(txns[txn_id]);   // txns[txn_id] 是否处于 COMMITTED 状态
   };
   std::vector<std::thread> threads;
   threads.reserve(num_rids);
@@ -77,15 +80,16 @@ void BasicTest1() {
     delete txns[i];
   }
 }
-TEST(LockManagerTest, DISABLED_BasicTest) { BasicTest1(); }
+TEST(LockManagerTest, BasicTest) { BasicTest1(); }
 
+// 检查单个事务的2PL过程
 void TwoPLTest() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
-  RID rid0{0, 0};
+  RID rid0{0, 0};   // {page_id,slot_num}
   RID rid1{0, 1};
 
-  auto txn = txn_mgr.Begin();
+  auto txn = txn_mgr.Begin();   // 创建事务
   EXPECT_EQ(0, txn->GetTransactionId());
 
   bool res;
@@ -99,13 +103,14 @@ void TwoPLTest() {
   CheckGrowing(txn);
   CheckTxnLockSize(txn, 1, 1);
 
-  res = lock_mgr.Unlock(txn, rid0);
+  res = lock_mgr.Unlock(txn, rid0); // txn 进入shrink阶段
   EXPECT_TRUE(res);
   CheckShrinking(txn);
-  CheckTxnLockSize(txn, 0, 1);
+  CheckTxnLockSize(txn, 0, 1);    // 检查共享锁的数量(0), 排他锁数量(1)
 
   try {
-    lock_mgr.LockShared(txn, rid0);
+    lock_mgr.LockShared(txn, rid0);   // txn 处于 shrink阶段, 应该 abort,然后被catch
+    std::cout<<"--------------- by cdz:warning,should not arrive here -----"<<std::endl;
     CheckAborted(txn);
     // Size shouldn't change here
     CheckTxnLockSize(txn, 0, 1);
@@ -117,14 +122,15 @@ void TwoPLTest() {
   }
 
   // Need to call txn_mgr's abort
-  txn_mgr.Abort(txn);
+  txn_mgr.Abort(txn);   // 事务管理器 abort 事务
   CheckAborted(txn);
   CheckTxnLockSize(txn, 0, 0);
 
   delete txn;
 }
-TEST(LockManagerTest, DISABLED_TwoPLTest) { TwoPLTest(); }
+TEST(LockManagerTest, TwoPLTest) { TwoPLTest(); }
 
+// 检查单个事务的锁升级过程
 void UpgradeTest() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
@@ -150,7 +156,7 @@ void UpgradeTest() {
   txn_mgr.Commit(&txn);
   CheckCommitted(&txn);
 }
-TEST(LockManagerTest, DISABLED_UpgradeLockTest) { UpgradeTest(); }
+TEST(LockManagerTest, UpgradeLockTest) { UpgradeTest(); }
 
 TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
   LockManager lock_mgr{};

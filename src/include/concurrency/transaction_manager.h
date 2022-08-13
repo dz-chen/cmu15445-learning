@@ -35,7 +35,7 @@ class TransactionManager {
   ~TransactionManager() = default;
 
   /**
-   * Begins a new transaction.
+   * Begins a new transaction. => 启动一个事务
    * @param txn an optional transaction object to be initialized, otherwise a new transaction is created.
    * @param isolation_level an optional isolation level of the transaction.
    * @return an initialized transaction
@@ -58,7 +58,10 @@ class TransactionManager {
    * Global list of running transactions
    */
 
-  /** The transaction map is a global list of all the running transactions in the system. */
+  /**
+   * The transaction map is a global list of all the running transactions in the system.
+   * 所有运行中的事务 
+   */
   static std::unordered_map<txn_id_t, Transaction *> txn_map;
 
   /**
@@ -73,16 +76,22 @@ class TransactionManager {
     return res;
   }
 
-  /** Prevents all transactions from performing operations, used for checkpointing. */
+  /**
+   * Prevents all transactions from performing operations, used for checkpointing. 
+   * checkpointing 见 recover 目录, 官方作业未要求完成...
+   */
   void BlockAllTransactions();
 
-  /** Resumes all transactions, used for checkpointing. */
+  /**
+   * Resumes all transactions, used for checkpointing. 
+   */
   void ResumeTransactions();
 
  private:
   /**
    * Releases all the locks held by the given transaction.
    * @param txn the transaction whose locks should be released
+   * 释放 txn 持有的所有锁
    */
   void ReleaseLocks(Transaction *txn) {
     std::unordered_set<RID> lock_set;

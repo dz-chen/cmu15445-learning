@@ -30,6 +30,9 @@ class TransactionManager;
 
 /**
  * LockManager handles transactions asking for locks on records.
+ * 注意:
+ *    1.事务 向 lockmanager 请求锁;
+ *    2.
  */
 class LockManager {
   // 共享锁,排它锁
@@ -44,11 +47,16 @@ class LockManager {
     bool granted_;
   };
 
+  /**
+   * 每个 rid 上一个 LockRequestQueue
+   * request_queue_ 存放等待获取锁的txn
+   */ 
   class LockRequestQueue {
    public:
-    std::list<LockRequest> request_queue_;
+    std::list<LockRequest> request_queue_;  // 存放两类txn: 未获得锁而阻塞的txn 以及  获得锁但是尚未释放的txn !
     std::condition_variable cv_;  // for notifying blocked transactions on this rid
-    bool upgrading_ = false;
+    std::mutex mtx_;               // add by cdz, 与条件变量搭配使用,每个mutex对应后一个共享对象(rid)...
+    bool upgrading_ = false;      // request_queue_ 中是否有请求升级锁的txn
   };
 
  public:
@@ -69,7 +77,7 @@ class LockManager {
   }
 
   /*
-   * [LOCK_NOTE]: For all locking functions, we:
+   * [LOCK_NOTE]: For all locking functions, we: => 重要,重点理解...
    * 1. return false if the transaction is aborted; and
    * 2. block on wait, return true when the lock request is granted; and
    * 3. it is undefined behavior to try locking an already locked RID in the same transaction, i.e. the transaction
@@ -97,6 +105,8 @@ class LockManager {
    * @param txn the transaction requesting the lock upgrade
    * @param rid the RID that should already be locked in shared mode by the requesting transaction
    * @return true if the upgrade is successful, false otherwise
+   * this should also abort the transaction and return false 
+   * if another transaction is already waiting to upgrade their lock
    */
   bool LockUpgrade(Transaction *txn, const RID &rid);
 
@@ -132,13 +142,29 @@ class LockManager {
   /** Runs cycle detection in the background. */
   void RunCycleDetection();
 
- private:
-  std::mutex latch_;
-  std::atomic<bool> enable_cycle_detection_;
-  std::thread *cycle_detection_thread_;
+  /*******functions add by cdz *********/
+  /**
+   * rid上是否已经有 exclusive lock 被授予
+   * 注意与 txn 的 IsExclusiveLocked()对比
+   */ 
+  bool IsExclusiveGranted(const RID &rid);
 
-  /** Lock table for lock requests. */
+  bool IsShareOrExclusiveGranted(const RID& rid);
+  
+  bool IsUpgradable(txn_id_t txn_id, const RID& rid);
+
+
+ private:
+  std::mutex latch_;                            // 保护lockmanager中的共享变量(lock_table_)
+  std::atomic<bool> enable_cycle_detection_;    // 是否开启死检测(需要一个后台线程进行检测)
+  std::thread *cycle_detection_thread_;         // 进行死锁检测的后台线程
+
+  /** 
+   * Lock table for lock requests. 
+   * 每个 rid 上有一个 队列 
+   */
   std::unordered_map<RID, LockRequestQueue> lock_table_;
+  
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
 };

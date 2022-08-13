@@ -67,7 +67,7 @@ class TableWriteRecord {
       : rid_(rid), wtype_(wtype), tuple_(tuple), table_(table) {}
 
   RID rid_;
-  WType wtype_;
+  WType wtype_;       // insert,delete,update
   /** The tuple is only used for the update operation. */
   Tuple tuple_;
   /** The table heap specifies which table this write record is for. */
@@ -103,9 +103,9 @@ class IndexWriteRecord {
  * Reason to a transaction abortion
  */
 enum class AbortReason {
-  LOCK_ON_SHRINKING,
-  UNLOCK_ON_SHRINKING,
-  UPGRADE_CONFLICT,
+  LOCK_ON_SHRINKING,          // can not take locks in the shrinking state
+  UNLOCK_ON_SHRINKING,        // can not excute unlock in the shrinking state (应该是在此阶段不能释放没有获得过的锁,正常情况可释放)
+  UPGRADE_CONFLICT,           // another transaction is already waiting to upgrade its lock
   DEADLOCK,
   LOCKSHARED_ON_READ_UNCOMMITTED
 };
@@ -145,6 +145,9 @@ class TransactionAbortException : public std::exception {
 
 /**
  * Transaction tracks information related to a transaction.
+ * 注意:
+ *    1.每个事务是由一个线程负责;
+ *    2.  
  */
 class Transaction {
  public:

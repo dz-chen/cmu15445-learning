@@ -22,8 +22,16 @@ namespace bustub {
 
 std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
 
+/**
+ * 启动事务
+ * txn 为 nullptr 则会新建事务
+ */ 
 Transaction *TransactionManager::Begin(Transaction *txn, IsolationLevel isolation_level) {
   // Acquire the global transaction latch in shared mode.
+  /**
+   * The global transaction latch is used for checkpointing
+   * TODO:待理解
+   */ 
   global_txn_latch_.RLock();
 
   if (txn == nullptr) {
@@ -37,7 +45,10 @@ Transaction *TransactionManager::Begin(Transaction *txn, IsolationLevel isolatio
 void TransactionManager::Commit(Transaction *txn) {
   txn->SetState(TransactionState::COMMITTED);
 
-  // Perform all deletes before we commit.
+  /**
+   * Perform all deletes before we commit.
+   * TODO:如何理解,为何在commit时才执行 delete?
+   */  
   auto write_set = txn->GetWriteSet();
   while (!write_set->empty()) {
     auto &item = write_set->back();
@@ -53,12 +64,22 @@ void TransactionManager::Commit(Transaction *txn) {
   // Release all the locks.
   ReleaseLocks(txn);
   // Release the global transaction latch.
+  // The global transaction latch is used for checkpointing,TODO:待理解...
   global_txn_latch_.RUnlock();
 }
 
+/**
+ * Abort() 即 rollback
+ * 1.将所有已经执行过的操作恢复回去...
+ * 2.释放所有已经持有的锁
+ */ 
 void TransactionManager::Abort(Transaction *txn) {
   txn->SetState(TransactionState::ABORTED);
-  // Rollback before releasing the lock.
+  /**
+   * Rollback before releasing the lock.
+   * table_write_set即: The undo set of table tuples
+   * 将事务已经对数据表执行过的所有操作恢复回去...
+   */
   auto table_write_set = txn->GetWriteSet();
   while (!table_write_set->empty()) {
     auto &item = table_write_set->back();
@@ -74,7 +95,12 @@ void TransactionManager::Abort(Transaction *txn) {
     table_write_set->pop_back();
   }
   table_write_set->clear();
-  // Rollback index updates
+  
+  /**
+   * Rollback index updates
+   * index_write_set即:The undo set of indexes
+   * 将事务已经对索引执行过的所有操作恢复回去...
+   */ 
   auto index_write_set = txn->GetIndexWriteSet();
   while (!index_write_set->empty()) {
     auto &item = index_write_set->back();
