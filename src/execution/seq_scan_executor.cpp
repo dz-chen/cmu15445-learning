@@ -39,8 +39,13 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
 
   // *iter_ 即 Tuple
   while(iter_ != table_->End()){
-    // 获取当前tuple
     RID currRid = iter_->GetRid();
+
+    // 读前先加锁,scan只需读锁,根据隔离级别决定是否释放读锁
+    LockManager* lock_mgr = GetExecutorContext()->GetLockManager();
+    if(lock_mgr) lock_mgr->tryLockShared(GetExecutorContext()-> GetTransaction(),currRid);
+    
+    // 获取当前tuple
     Tuple currTuple = *iter_;
     iter_++;
 
@@ -51,6 +56,10 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
       Value evalResult = predicate->Evaluate(&currTuple, &schema_);
       ok = evalResult.GetAs<bool>();
     }
+    
+    // 读完,释放读锁(tryUnlockShared 会自动判断隔离级别)
+    if(lock_mgr) lock_mgr->tryUnlockShared(GetExecutorContext()-> GetTransaction(),currRid);
+
     if(ok) {
       *tuple = currTuple;
       *rid = currRid;

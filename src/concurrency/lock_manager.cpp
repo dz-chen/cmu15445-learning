@@ -345,7 +345,7 @@ void LockManager::RunCycleDetection() {
   }
 }
 
-/*********************************** functions add by cdz *************************/
+/****************************************** functions add by cdz *******************************************/
 /**
  * rid上是否已经有 exclusive lock 被授予
  * 注意与 txn 的 IsExclusiveLocked()对比
@@ -462,4 +462,57 @@ bool LockManager::DFS(txn_id_t start,txn_id_t* youngest){
   }
   return false;
 }
+
+
+/*************************************** 以下为封装后供 executor 调用, by cdz **********************************/
+// 以下主要是在executor 读/写 tuple 时,根据隔离级别确定如何加锁, 何时释放锁
+// (多数检查其实在LockShared/LockExclusive/Unlock 中已经有了; 其实目前写得有点混乱...)
+
+bool LockManager::tryLockShared(Transaction *txn, const RID &rid){
+  if(txn->IsExclusiveLocked(rid)) return true;    // 已经有写锁,则包含了读的含义,直接返回
+  switch (txn->GetIsolationLevel()) {
+    case IsolationLevel::READ_UNCOMMITTED:
+      // READ_UNCOMMITTED: 只有写锁,没有读锁,在数据读上没有限制,不必也不能上读锁
+      break;
+    case IsolationLevel::READ_COMMITTED:
+      // READ_COMMITTED : 写锁一直保持到事务结束,但是读锁在SELECT操作完成后马上释放 !!
+      if(txn->IsSharedLocked(rid)) return true; 
+      LockShared(txn, rid);
+      break;
+    case IsolationLevel::REPEATABLE_READ:
+      // REPEATABLE_READ:对象的读锁和写锁一直保持到事务结束
+      if(txn->IsSharedLocked(rid)) return true;
+      LockShared(txn, rid);
+      break;
+    default:
+      LOG_WARN("unrecognized IsolationLevel");
+      break;
+  }
+  return true;
+}
+
+// 只能是 READ_COMMITTED 可以释放读锁
+bool LockManager::tryUnlockShared(Transaction *txn, const RID &rid){
+  if(txn->GetIsolationLevel()!=IsolationLevel::READ_COMMITTED){
+    LOG_WARN("IsolationLevel is not READ_COMMITTED, can not release shared lock");
+    return false;
+  }
+  Unlock(txn,rid);  // TODO:这里面其实还有释放exclusive的情况,调用前应该先检查下...
+  return true;
+}
+
+// 所有隔离级别都需要加写锁,因此无需判断隔离级别
+// exclusive不需要在 executor 中释放, commit 时会自动释放
+bool LockManager::tryLockExclusive(Transaction *txn, const RID &rid){
+  if(txn->IsExclusiveLocked(rid)) return true;    // 已经有写锁,直接返回
+
+  if(txn->IsSharedLocked(rid)) {
+    LockUpgrade(txn, rid);
+  } else{
+    LockExclusive(txn, rid);
+  }
+  return true;
+}
+
+
 }  // namespace bustub

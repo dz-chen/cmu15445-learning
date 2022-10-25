@@ -33,6 +33,10 @@ void DeleteExecutor::Init() {
 bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   Tuple currTuple; RID currRid;
   while(child_executor_->Next(&currTuple,&currRid)){
+    // 上锁, delete故exclusive锁
+    LockManager* lock_mgr = GetExecutorContext()->GetLockManager();
+    if(lock_mgr) lock_mgr->tryLockExclusive(GetExecutorContext()-> GetTransaction(),currRid);
+
     // 删除元组
     TableHeap* table_ = table_info_->table_.get();
     // only need to mark. The deletes will be applied when transaction commits

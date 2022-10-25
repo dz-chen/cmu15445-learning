@@ -34,6 +34,10 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   // 通过子 executor 获取需要更改的数据
   Tuple currTuple; RID currRid;
   while(child_executor_->Next(&currTuple,&currRid)){
+    // 上锁, update 故exclusive锁
+    LockManager* lock_mgr = GetExecutorContext()->GetLockManager();
+    if(lock_mgr) lock_mgr->tryLockExclusive(GetExecutorContext()-> GetTransaction(),currRid);
+    
     // update table data
     Tuple newTuple = GenerateUpdatedTuple(currTuple);
     TableHeap* table_ = table_info_->table_.get();

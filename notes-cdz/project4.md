@@ -149,8 +149,15 @@ ANSI/ISO SQL 92标准描述了三种不同的`一个事务读取另外一个事�
 - To simplify this task, you `can ignore concurrent index execution` and just focus on table tuples.  
 - Although there is no requirement of concurrent index execution, we still need to `undo all previous write operations` on both `table tuples` and `indexes` appropriately on transaction abort.  
 - You should not assume that a transaction only consists of one query. Specifically, this means `a tuple might be accessed by different queries more than once in a transaction`. Think about how you should handle this under different isolation levels.  
-- 
+- join和agg都是调用seq，所以不需要单独处理(不用单独加锁)  
+- 插入的特殊处理
+> 插入没办法在插入之前tryExclusiveLock，因为此时该tuple根本没创建。而如果插入后再tryExclusiveLock，则其他事务可能在插入后，上锁前访问该tuple.看源码，在TableHeap::InsertTuple中调用:
+cur_page->InsertTuple(tuple, rid, txn, lock_manager_, log_manager_)
+将tuple插入到一个有空闲空间的page中，且插入时一直持有该page的WLatch。所以只要在cur_page->InsertTuple的最后面调用tryExclusiveLock，就可以保证上锁前该tuple不会被其他线程访问。测试里txnId为0的txn负责generate table，在测试结束时才提交，所以插入时不能加锁，其他事务插入时需要加锁。
+
+
 ### TransactionManager的实现
+
 # 知识点积累
 ## 理解条件变量(重要)
 如果说`互斥锁是用于同步线程对共享数据的访问`的话,那么`条件变量则是用于在线程之间同步共享数据的值`;  
@@ -185,6 +192,15 @@ latch_ 是不可重入的mutex!!!
 所以只能在最外层加锁(latch_.lock()),否则将导致死锁  
 
 到底该在什么地方使用???? TODO
+
+## 回滚的具体实现思路 TODO
+
+## 插入时加锁的特殊处理(重要)
+插入没办法在插入之前tryExclusiveLock，因为此时该tuple根本没创建。而如果插入后再tryExclusiveLock，则其他事务可能在插入后，上锁前访问该tuple.看源码，在TableHeap::InsertTuple中调用:
+cur_page->InsertTuple(tuple, rid, txn, lock_manager_, log_manager_)
+将tuple插入到一个有空闲空间的page中，且插入时一直持有该page的WLatch。所以只要在cur_page->InsertTuple的最后面调用tryExclusiveLock，就可以保证上锁前该tuple不会被其他线程访问。  
+`测试里txnId为0的txn负责generate table，在测试结束时才提交，所以插入时不能加锁，其他事务插入时需要加锁。`  
+
 
 
 
@@ -224,10 +240,17 @@ LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/lock_manager
 b lock_manager_test.cpp:188
 
 
-// executor_test 执行及调试
+// grading_lock_manager_2test 执行及调试
 make -j4 grading_lock_manager_2test
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/grading_lock_manager_2test
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/grading_lock_manager_2test --gtest_filter=LockManagerTest.TwoPLTest
 b lock_manager_test.cpp:123
+
+
+// transaction_test 执行及调试
+make -j4 transaction_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/transaction_test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/transaction_test --gtest_filter=TransactionTest.SimpleInsertRollbackTest
+b transaction_test.cpp:188
 ```
 

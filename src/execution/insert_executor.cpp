@@ -40,7 +40,11 @@ void InsertExecutor::Init() {
 
 /*
  * @return true if a tuple was produced, false if there are no more tuples
- *  => 注:insert不会返回tuple,但是会返回rid,Next执行成功则返回true...
+ *  => 注:
+ * 1.insert不会返回tuple,但是会返回rid,Next执行成功则返回true...
+ * 2.插入没办法在插入之前tryExclusiveLock，因为此时该tuple根本没创建.
+ *   而如果插入后再tryExclusiveLock，则其他事务可能在插入后，上锁前访问该tuple
+ *   具体解决方法在 TableHeap::InsertTuple 中 !!
  */ 
 bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // 如果plan_中直接包含了所有要插入的元组

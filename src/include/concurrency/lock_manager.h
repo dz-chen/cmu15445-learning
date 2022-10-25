@@ -159,6 +159,14 @@ class LockManager {
 
   bool DFS(txn_id_t start,txn_id_t* youngest);
 
+  /* 以下为封装后供 executor 调用, by cdz */
+  bool tryLockShared(Transaction *txn, const RID &rid);
+  
+  bool tryUnlockShared(Transaction *txn, const RID &rid);
+
+  bool tryLockExclusive(Transaction *txn, const RID &rid);
+  
+  // bool tryUnlockExclusive(Transaction *txn, const RID &rid); // exclusive不需要手动释放,commit时会释放
 
  private:
   std::mutex latch_;                            // 保护lockmanager中的共享变量(lock_table_)

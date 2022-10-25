@@ -81,6 +81,12 @@ bool TableHeap::InsertTuple(const Tuple &tuple, RID *rid, Transaction *txn) {
       cur_page = new_page;
     }
   }
+  // 至此插入成功,但是 cur_page 上的 latch 尚未释放
+  // 因此可以在此加上 insert 的 exclusive 锁 -- by cdz
+  if(lock_manager_ && txn && txn->GetTransactionId()!=0 ) {
+    lock_manager_->tryLockExclusive(txn,*rid);
+  }
+  
   // This line has caused most of us to double-take and "whoa double unlatch".
   // We are not, in fact, double unlatching. See the invariant above.
   cur_page->WUnlatch();
