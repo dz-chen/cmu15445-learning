@@ -15,11 +15,10 @@
 #include <atomic>
 #include <unordered_map>
 #include <unordered_set>
-
 #include "common/config.h"
-#include "concurrency/lock_manager.h"
 #include "concurrency/transaction.h"
 #include "recovery/log_manager.h"
+#include "concurrency/lock_manager.h"
 
 namespace bustub {
 class LockManager;
@@ -29,7 +28,10 @@ class LockManager;
  */
 class TransactionManager {
  public:
-  explicit TransactionManager(LockManager *lock_manager, LogManager *log_manager = nullptr)
+  // explicit TransactionManager(LockManager *lock_manager, LogManager *log_manager = nullptr)
+  //     : lock_manager_(lock_manager), log_manager_(log_manager) {}
+
+  TransactionManager(LockManager *lock_manager, LogManager *log_manager = nullptr)
       : lock_manager_(lock_manager), log_manager_(log_manager) {}
 
   ~TransactionManager() = default;
@@ -109,7 +111,8 @@ class TransactionManager {
   std::atomic<txn_id_t> next_txn_id_{0};
   LockManager *lock_manager_ __attribute__((__unused__));
   LogManager *log_manager_ __attribute__((__unused__));
-
+  // LockManager *lock_manager_;
+  // LogManager *log_manager_;
   /** The global transaction latch is used for checkpointing. */
   ReaderWriterLatch global_txn_latch_;
 };

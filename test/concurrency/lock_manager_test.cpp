@@ -31,6 +31,7 @@ void CheckTxnLockSize(Transaction *txn, size_t shared_size, size_t exclusive_siz
   EXPECT_EQ(txn->GetExclusiveLockSet()->size(), exclusive_size);
 }
 
+// 测试时关闭 enable_cycle_detection_
 // Basic shared lock test under REPEATABLE_READ
 // 注意 REPEATABLE_READ ; 目前只是状态检查...
 void BasicTest1() {
@@ -82,13 +83,13 @@ void BasicTest1() {
 }
 TEST(LockManagerTest, BasicTest) { BasicTest1(); }
 
+// 测试时关闭 enable_cycle_detection_
 // 检查单个事务的2PL过程
 void TwoPLTest() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
   RID rid0{0, 0};   // {page_id,slot_num}
   RID rid1{0, 1};
-
   auto txn = txn_mgr.Begin();   // 创建事务
   EXPECT_EQ(0, txn->GetTransactionId());
 
@@ -130,6 +131,7 @@ void TwoPLTest() {
 }
 TEST(LockManagerTest, TwoPLTest) { TwoPLTest(); }
 
+// 测试时关闭 enable_cycle_detection_
 // 检查单个事务的锁升级过程
 void UpgradeTest() {
   LockManager lock_mgr{};
@@ -158,7 +160,9 @@ void UpgradeTest() {
 }
 TEST(LockManagerTest, UpgradeLockTest) { UpgradeTest(); }
 
-TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
+// 测试时关闭 enable_cycle_detection_
+// txn ids 需要加入 txnManager的 txn_map ,否则后续 AddEdge() 时找不到 txn_id 对应的 txn
+TEST(LockManagerTest, GraphEdgeTest) {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
   const int num_nodes = 100;
@@ -183,6 +187,11 @@ TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
     EXPECT_EQ(i / 2, lock_mgr.GetEdgeList().size());
     auto t1 = txn_ids[i];
     auto t2 = txn_ids[i + 1];
+    // add by cdz
+    Transaction txn1(t1);
+    txn_mgr.Begin(&txn1);
+    Transaction txn2(t2);
+    txn_mgr.Begin(&txn2);
     lock_mgr.AddEdge(t1, t2);
     edges.emplace_back(t1, t2);
     EXPECT_EQ((i / 2) + 1, lock_mgr.GetEdgeList().size());
@@ -200,9 +209,16 @@ TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
   }
 }
 
-TEST(LockManagerTest, DISABLED_BasicCycleTest) {
+// 测试时关闭 enable_cycle_detection_
+// txn ids 需要加入 txnManager的 txn_map ,否则后续 AddEdge() 时找不到 txn_id 对应的 txn
+TEST(LockManagerTest, BasicCycleTest) {
   LockManager lock_mgr{}; /* Use Deadlock detection */
   TransactionManager txn_mgr{&lock_mgr};
+  // add by cdz
+  Transaction txn0(0);
+  txn_mgr.Begin(&txn0);
+  Transaction txn1(1);
+  txn_mgr.Begin(&txn1);
 
   /*** Create 0->1->0 cycle ***/
   lock_mgr.AddEdge(0, 1);
@@ -217,7 +233,8 @@ TEST(LockManagerTest, DISABLED_BasicCycleTest) {
   EXPECT_EQ(false, lock_mgr.HasCycle(&txn));
 }
 
-TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
+// 测试时关闭 enable_cycle_detection_
+TEST(LockManagerTest, BasicDeadlockDetectionTest) {
   LockManager lock_mgr{};
   cycle_detection_interval = std::chrono::milliseconds(500);
   TransactionManager txn_mgr{&lock_mgr};
@@ -228,25 +245,29 @@ TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
   EXPECT_EQ(0, txn0->GetTransactionId());
   EXPECT_EQ(1, txn1->GetTransactionId());
 
+  /* 构造死锁环境,死锁检测并abort最年轻的txn(即txn1) */
+
+  // txn0 的行为
   std::thread t0([&] {
     // Lock and sleep
     bool res = lock_mgr.LockExclusive(txn0, rid0);
     EXPECT_EQ(true, res);
     EXPECT_EQ(TransactionState::GROWING, txn0->GetState());
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // 保证 txn1 先获取rid1上的X锁
 
     // This will block
-    lock_mgr.LockExclusive(txn0, rid1);
+    lock_mgr.LockExclusive(txn0, rid1);   // rid1 上 txn1 已经获取锁,故阻塞
 
     lock_mgr.Unlock(txn0, rid0);
     lock_mgr.Unlock(txn0, rid1);
 
-    txn_mgr.Commit(txn0);
+    txn_mgr.Commit(txn0);       // commit 时会释放txn0的所有锁
     EXPECT_EQ(TransactionState::COMMITTED, txn0->GetState());
   });
 
+  // txn1 的行为
   std::thread t1([&] {
-    // Sleep so T0 can take necessary locks
+    // Sleep so T0 can take necessary locks => 保证 txn0 先执行并获取 rid0上的X锁
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     bool res = lock_mgr.LockExclusive(txn1, rid1);
     EXPECT_EQ(res, true);
@@ -254,8 +275,8 @@ TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
 
     // This will block
     try {
-      res = lock_mgr.LockExclusive(txn1, rid0);
-      EXPECT_EQ(TransactionState::ABORTED, txn1->GetState());
+      res = lock_mgr.LockExclusive(txn1, rid0);   // rid0上txn0已经获取锁,故阻塞,形成死锁!!  
+      EXPECT_EQ(TransactionState::ABORTED, txn1->GetState()); // 按理死锁检测程序将abort  txn1 
       txn_mgr.Abort(txn1);
     } catch (TransactionAbortException &e) {
       // std::cout << e.GetInfo() << std::endl;
@@ -265,12 +286,13 @@ TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
   });
 
   // Sleep for enough time to break cycle
-  std::this_thread::sleep_for(cycle_detection_interval * 2);
-
+  // std::this_thread::sleep_for(cycle_detection_interval * 2);
+  std::this_thread::sleep_for(cycle_detection_interval * 5);
   t0.join();
   t1.join();
 
   delete txn0;
   delete txn1;
+  std::cout<<"by cdz: BasicDeadlockDetectionTest ok!!!!!!"<<std::endl;
 }
 }  // namespace bustub

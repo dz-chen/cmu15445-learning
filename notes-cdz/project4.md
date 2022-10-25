@@ -122,10 +122,35 @@ ANSI/ISO SQL 92标准描述了三种不同的`一个事务读取另外一个事�
 
 
 ## Deadlock Detection
+### 官方建议/重点
+- `HasCycle(txn_id_t& txn_id)`: Looks for a cycle by using the Depth First Search (`DFS`) algorithm. If it finds a cycle, HasCycle should store the transaction id of the `youngest` transaction in the cycle in txn_id and return true. `Your function should return the first cycle it finds`  
+- Your background thread should `build the graph on the fly every time it wakes up`. You should not be maintaining a graph, `it should be built and destroyed every time the thread wakes up`.  
+- Your DFS Cycle detection algorithm must be deterministic. In order to do achieve this, you `must always choose to explore the lowest transaction id first`. This means when choosing which unexplored node to run DFS from, always choose the node with the lowest transaction id. This also means when exploring neighbors, explore them in sorted order from lowest to highest.  
+- When you find a cycle, you should `abort the youngest transaction` to break the cycle by setting that transactions state to ABORTED  
+- When your detection thread wakes up, it is responsible for breaking all cycles that exist. If you follow the above requirements, you will always find the cycles in a deterministic order. This also means that when you are building your graph, `you should not add nodes for aborted transactions or draw edges to aborted transactions`.  
+- Remember that if multiple transactions hold a shared lock, a single transaction may be waiting on multiple transactions  
+- 
+
+### 死锁检测原理及代码实现思路
+**1.原理**  
+其实就是依赖图(等待图),通过拓扑排序/DFS/并查集等方法判断图中是否有环,有环则产生死锁,需要Abort一个事务;  
+如果T1需要等待T2释放锁,则图中有一条T1指向T2的边(T1-->T2);  
+本课程要求通过DFS判断是否存在环;  
+
+**2.代码实现思路**  
+注意作业中有要求不能自己维护等待图,图需要在死锁检测线程醒来时由该线程构建/释放;  
+=> 即`在上锁的过程中,不应该将事务加入等待图`...  
+思路就是每次死锁检测线程醒来时,根据lock_table_构建等待图,然后DFS检测环,有环则Abort最年轻的事务...  
+详见 lock_manager.cpp  
 
 ## Concurrent Query Execution
+### 官方建议/重点
+- `executors are required to lock/unlock tuples appropriately to achieve the isolation level specified in the corresponding transaction`.  
+- To simplify this task, you `can ignore concurrent index execution` and just focus on table tuples.  
+- Although there is no requirement of concurrent index execution, we still need to `undo all previous write operations` on both `table tuples` and `indexes` appropriately on transaction abort.  
+- You should not assume that a transaction only consists of one query. Specifically, this means `a tuple might be accessed by different queries more than once in a transaction`. Think about how you should handle this under different isolation levels.  
+- 
 ### TransactionManager的实现
-
 # 知识点积累
 ## 理解条件变量(重要)
 如果说`互斥锁是用于同步线程对共享数据的访问`的话,那么`条件变量则是用于在线程之间同步共享数据的值`;  
@@ -155,6 +180,11 @@ Although some isolation levels are achieved by ensuring the properties of strict
 
 ## 为何可重复读会有幻读,读已提交会有不可重复读...(TODO)
 
+## latch_(sted::mutex)的使用时机 TODO
+latch_ 是不可重入的mutex!!!  
+所以只能在最外层加锁(latch_.lock()),否则将导致死锁  
+
+到底该在什么地方使用???? TODO
 
 
 
@@ -190,13 +220,14 @@ cmake -DCMAKE_BUILD_TYPE=DEBUG ..
 // executor_test 执行及调试
 make -j4 lock_manager_test
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/lock_manager_test
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/lock_manager_test --gtest_filter=LockManagerTest.TwoPLTest
-b lock_manager_test.cpp:123
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/lock_manager_test --gtest_filter=LockManagerTest.BasicDeadlockDetectionTest
+b lock_manager_test.cpp:188
 
 
 // executor_test 执行及调试
 make -j4 grading_lock_manager_2test
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/grading_lock_manager_1test
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/grading_lock_manager_1test --gtest_filter=LockManagerTest.TwoPLTest
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/grading_lock_manager_2test
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4 gdb --args ./test/grading_lock_manager_2test --gtest_filter=LockManagerTest.TwoPLTest
 b lock_manager_test.cpp:123
 ```
+

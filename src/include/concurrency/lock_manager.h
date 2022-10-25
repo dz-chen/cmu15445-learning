@@ -23,6 +23,7 @@
 
 #include "common/rid.h"
 #include "concurrency/transaction.h"
+// #include "concurrency/transaction_manager.h"
 
 namespace bustub {
 
@@ -65,6 +66,7 @@ class LockManager {
    */
   LockManager() {
     enable_cycle_detection_ = true;
+    // enable_cycle_detection_ = false;
     cycle_detection_thread_ = new std::thread(&LockManager::RunCycleDetection, this);
     LOG_INFO("Cycle detection thread launched");
   }
@@ -152,6 +154,10 @@ class LockManager {
   bool IsShareOrExclusiveGranted(const RID& rid);
   
   bool IsUpgradable(txn_id_t txn_id, const RID& rid);
+
+  void BuildWaitsFor();
+
+  bool DFS(txn_id_t start,txn_id_t* youngest);
 
 
  private:

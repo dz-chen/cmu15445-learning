@@ -61,7 +61,7 @@ void TransactionManager::Commit(Transaction *txn) {
   }
   write_set->clear();
 
-  // Release all the locks.
+  // Release all the locks. 释放 txn 持有的所有锁
   ReleaseLocks(txn);
   // Release the global transaction latch.
   // The global transaction latch is used for checkpointing,TODO:待理解...

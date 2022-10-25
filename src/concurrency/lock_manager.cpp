@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "concurrency/lock_manager.h"
-
+#include "concurrency/transaction_manager.h"
 #include <utility>
 #include <vector>
+#include <stack>
+#include <algorithm>
 
 namespace bustub {
 
@@ -60,7 +62,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   LockRequestQueue& req_queue = lock_table_[rid];
   latch_.lock();
   req_queue.request_queue_.emplace_back(LockRequest(txn->GetTransactionId(),LockMode::SHARED));
-  auto req = req_queue.request_queue_.end();
+  auto& req = req_queue.request_queue_.back();     // 引用,获得锁后会用到
   latch_.unlock();
 
   /**
@@ -78,7 +80,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   }
 
   // 授予锁
-  req->granted_ = true;
+  req.granted_ = true;
   txn->SetState(TransactionState::GROWING);   // 仅对 REPEATABLE_READ 有用
   txn->GetSharedLockSet()->emplace(rid);      // 对 REPEATABLE_READ,READ_COMMITTED 有用
   return true;
@@ -110,8 +112,9 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
   LockRequestQueue& req_queue = lock_table_[rid];
   latch_.lock();
   req_queue.request_queue_.emplace_back(LockRequest(txn->GetTransactionId(),LockMode::EXCLUSIVE));
-  auto req = req_queue.request_queue_.end();
+  auto& req = req_queue.request_queue_.back();    // 引用,获得锁后会用到
   latch_.unlock();
+
 
   /**
    * 以下情况需要阻塞:
@@ -128,7 +131,7 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
   }
 
   // 授予锁
-  req->granted_ = true;
+  req.granted_ = true;
   txn->SetState(TransactionState::GROWING);   // 仅对 REPEATABLE_READ 有用
   txn->GetExclusiveLockSet()->emplace(rid);
   return true;
@@ -176,7 +179,7 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
    * 阻塞等待升级时机
    */
   req_queue.upgrading_ = true;
-  while(IsUpgradable(txn->GetTransactionId(),rid)){
+  while(!IsUpgradable(txn->GetTransactionId(),rid)){
     std::unique_lock<std::mutex> ul(req_queue.mtx_);
     req_queue.cv_.wait(ul);
   }
@@ -218,41 +221,135 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   LockRequestQueue& req_queue = lock_table_[rid];
   auto req = std::find_if(req_queue.request_queue_.begin(),req_queue.request_queue_.end(),
                         [&txn](auto &req){ return req.txn_id_==txn->GetTransactionId();} );
-  if(req->lock_mode_==LockMode::SHARED) txn->GetSharedLockSet()->erase(rid);  // 释放共享锁
-  else txn->GetExclusiveLockSet()->erase(rid);                                // 释放排它锁
+  if(req->lock_mode_==LockMode::SHARED)   // 释放共享锁
+    txn->GetSharedLockSet()->erase(rid);  
+  else                                    // 释放排它锁
+    txn->GetExclusiveLockSet()->erase(rid);                                
 
-  latch_.lock();
+  // latch_.lock();
   req_queue.request_queue_.erase(req);
-  latch_.unlock();
+  // latch_.unlock();
   req_queue.cv_.notify_all();
   
   return true;
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {}
+/**
+ * when you are building your graph, you should not add nodes for aborted transactions
+ * or draw edges to aborted transactions
+ * TODO: ABORTED 的判断放到 BuildWaitFfor()中
+ */ 
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
+  Transaction* txn1 = TransactionManager::GetTransaction(t1);
+  Transaction* txn2 = TransactionManager::GetTransaction(t2);
+  if(txn1->GetState()==TransactionState::ABORTED || txn2->GetState()==TransactionState::ABORTED){
+      return;
+  }
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {}
+  // latch_.lock();
+  // 原本没有 t1 
+  if(waits_for_.find(t1)==waits_for_.end()){
+    waits_for_[t1]=std::vector<txn_id_t>(1,t2);
+  }
+  auto& vec = waits_for_[t1];
 
-bool LockManager::HasCycle(txn_id_t *txn_id) { return false; }
+  // 原本没有 t2 才添加
+  if(find(vec.begin(),vec.end(),t2)==vec.end()){
+    vec.emplace_back(t2);
+  }
+  // latch_.unlock();
+}
 
-std::vector<std::pair<txn_id_t, txn_id_t>> LockManager::GetEdgeList() { return {}; }
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
+  // latch_.lock();
+  // 删除 edge
+  auto& vec = waits_for_[t1];
+  auto iter_t2 = find(vec.begin(),vec.end(),t2);
+  vec.erase(iter_t2);
+  // 如果已经删完
+  if(vec.size()==0){
+    waits_for_.erase(t1);
+  }
+  // latch_.unlock();
+}
+
+/**
+ * 使用 DFS 算法检测是否有环(非递归实现)
+ * 返回值为 true时, txn_id 是环中最年轻的 txn
+ */ 
+bool LockManager::HasCycle(txn_id_t *txn_id) {
+  // latch_.lock();
+  /**
+   * waits_for_ 可能是森林,故每个节点都需要尝试一次...
+   * TODO: 优化,对于已经确定无环的某棵树,for循环直接略过树中所有节点...
+   */ 
+  for(auto& kv:waits_for_){
+    txn_id_t start_txn = kv.first;
+    if(DFS(start_txn,txn_id)){
+      // latch_.unlock();
+      return true;
+    }
+  }
+  // latch_.unlock();
+  return false; 
+}
+
+std::vector<std::pair<txn_id_t, txn_id_t>> LockManager::GetEdgeList() {
+  std::vector<std::pair<txn_id_t, txn_id_t>> edgelist;
+  // latch_.lock();
+  for(auto kv:waits_for_){
+    txn_id_t t1 = kv.first;    
+    for(auto t2 : kv.second){
+      edgelist.emplace_back(std::make_pair(t1,t2));
+    }
+  }
+  // latch_.unlock();
+  return edgelist;
+}
 
 void LockManager::RunCycleDetection() {
   while (enable_cycle_detection_) {
     std::this_thread::sleep_for(cycle_detection_interval);
     {
-      std::unique_lock<std::mutex> l(latch_);
+      std::unique_lock<std::mutex> l(latch_);   // 作用? TODO
       // TODO(student): remove the continue and add your cycle detection and abort code here
-      continue;
+      // continue;
+      // latch_.lock();
+      BuildWaitsFor();
+      txn_id_t youngest;
+      while(HasCycle(&youngest)){
+        // 有环,Abort 最年轻的 txn
+        Transaction* victim_txn = TransactionManager::GetTransaction(youngest);
+        victim_txn->SetState(TransactionState::ABORTED);
+
+        /**
+         * 释放victim持有的锁,其他等待线程从而可以执行 => 即 transactionManager 的 ReleaseLocks() 函数
+         * TODO: 评估是否合适？
+         */ 
+        std::unordered_set<RID> lock_set;
+        for (auto item : *victim_txn->GetExclusiveLockSet()) {
+          lock_set.emplace(item);
+        }
+        for (auto item : *victim_txn->GetSharedLockSet()) {
+          lock_set.emplace(item);
+        }
+        for (auto locked_rid : lock_set) {
+          Unlock(victim_txn, locked_rid);
+        }
+  
+        // 重新构建图,TODO:仅删除 youngest 相关的边或许更好?
+        BuildWaitsFor();
+      }
+      // latch_.unlock();
     }
   }
 }
 
-  /*******functions add by cdz *********/
-  /**
-   * rid上是否已经有 exclusive lock 被授予
-   * 注意与 txn 的 IsExclusiveLocked()对比
-   */ 
+/*********************************** functions add by cdz *************************/
+/**
+ * rid上是否已经有 exclusive lock 被授予
+ * 注意与 txn 的 IsExclusiveLocked()对比
+ */ 
 bool LockManager::IsExclusiveGranted(const RID &rid){
   LockRequestQueue& req_queue = lock_table_[rid];
   for(auto& req : req_queue.request_queue_){
@@ -284,7 +381,7 @@ bool LockManager::IsUpgradable(txn_id_t txn_id, const RID& rid){
   LockRequestQueue& req_queue = lock_table_[rid];
   bool is_txn_slocked=false;  // 确保rid上确实有txn的共享锁
   for(auto& req : req_queue.request_queue_){
-    if(req.granted_){     // 已经被授予了锁
+    if(req.granted_){         // 已经被授予了锁
       if(req.lock_mode_!=LockMode::SHARED) return false; // 已经有了互斥锁
       if(req.txn_id_!=txn_id) return false;              // rid上的共享锁不是txn_id的
       else is_txn_slocked=true;
@@ -294,4 +391,75 @@ bool LockManager::IsUpgradable(txn_id_t txn_id, const RID& rid){
 }
 
 
+/**
+ * 构建等待图,使用lockmanager中的变量 waits_for_
+ * TODO: latch_ 何时使用? 这里为何不可用(导致卡住)?...
+ */ 
+void LockManager::BuildWaitsFor(){
+  // latch_.lock();
+  waits_for_.clear();
+  /**
+   * 构建等待图...
+   * 统计rid的请求que中所有 已经获得锁但尚未释放的txn(locked_set), 以及所有未获得锁的txn(wait_set),后者指向前者
+   * 注意:
+   * 1.请求共享锁的 txn 只需等待 排他锁 释放(但这里无需判断,因为上锁时就保证了共享锁等待的一定是排他锁)
+   * 2.请求排他锁的 txn 需要等待 共享锁及排他锁 释放
+   * 3.一轮for 对应于 一个 rid!
+   */  
+  for(auto& kv:lock_table_){
+    // rid 上所有尚未完成的txn请求(可能是未获得锁而阻塞,也可能是获得锁尚未释放)
+    LockRequestQueue& req_queue = kv.second;
+    std::vector<txn_id_t> locked_set;
+    std::vector<txn_id_t> wait_set;
+    // 获取相关 txn
+    for(auto& req:req_queue.request_queue_){
+      if(req.granted_) locked_set.emplace_back(req.txn_id_);
+      else wait_set.emplace_back(req.txn_id_);
+    }
+    // 加入边(AddEdge中会检查aborted!!!)
+    for(auto from:wait_set){
+      for(auto to:locked_set){
+        AddEdge(from, to);
+      }
+    }
+  }
+  // latch_.unlock();
+}
+
+/**
+ * 从某个点出发,判断等待图中是否存在环
+ * 注意:
+ * 1.根据要求,每次找相邻点时,总是 lowest txn_id 优先
+ * 2.HasCycle()时已经对 latch_ 加锁,这里不能加锁,否则导致死锁...
+ * TODO:待优化,认真思考 确定性 要求,应该无需排序的...
+ */
+bool LockManager::DFS(txn_id_t start,txn_id_t* youngest){
+  std::vector<bool> visited(waits_for_.size(),false);
+  txn_id_t prev_visited;
+  std::stack<txn_id_t> st;
+  st.push(start);
+
+  while(!st.empty()){
+    txn_id_t from = st.top();
+    st.pop();
+    prev_visited = from;
+    /**
+     * 再次遇到已经走过的点,则有环;
+     * 每次选择邻节点都是 lowest(即最老的),整个cycle里最youngest的节点是 检测到环时的上一个节点!!! 重要,正确否? TODO:
+     */
+    if(visited[from]==true){
+      *youngest = prev_visited;
+      return true;
+    }
+    visited[from] = true;
+
+    auto vec = waits_for_[from];
+    sort(vec.begin(),vec.end());    // 升序
+    // txn id 最小的优先...
+    for(int i=vec.size()-1;i>=0;i--){
+      st.push(vec[i]);
+    }
+  }
+  return false;
+}
 }  // namespace bustub
