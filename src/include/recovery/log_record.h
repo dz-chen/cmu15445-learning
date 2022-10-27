@@ -55,7 +55,7 @@ enum class LogRecordType {
  *-----------------------------------------------------------------------------------
  * For new page type log record
  *--------------------------
- * | HEADER | prev_page_id |
+ * | HEADER | prev_page_id |  这里漏掉了 page_id_ ?
  *--------------------------
  */
 class LogRecord {

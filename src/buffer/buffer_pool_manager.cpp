@@ -69,6 +69,14 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   // 2. 判断1.2中找到的 frame 中数据是否 dirty, 是则写回(本质上就是将内存page置换回磁盘)
   Page* page = &pages_[frame_id];
   if(page -> is_dirty_){
+    //Before your buffer pool manager evicts a dirty page from LRU replacer and write this page back to db file,
+    // it needs to flush logs up to pageLSN. You need to compare persistent_lsn_ (a member variable maintains
+    // by Log Manager) with your pageLSN. However unlike group commit, buffer pool can force log manager to flush log
+    // buffer, but still needs to wait for logs to be permanently stored before continue
+    if (enable_logging && log_manager_->GetPersistentLSN() < page->GetLSN()){
+      log_manager_->FlushLog(true);   // 强制刷新
+    }
+      
     disk_manager_->WritePage(page->page_id_, page->data_);
   }
 

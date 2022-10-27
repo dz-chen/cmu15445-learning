@@ -112,7 +112,7 @@ class DiskManager {
   int num_flushes_;
   int num_writes_;
   bool flush_log_;
-  std::future<void> *flush_log_f_;
+  std::future<void> *flush_log_f_;    // 个人实现中暂未用上...
 };
 
 }  // namespace bustub

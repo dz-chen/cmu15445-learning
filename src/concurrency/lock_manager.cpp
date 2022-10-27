@@ -69,10 +69,11 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
    * 以下情况需要阻塞:
    * 1.当前rid上已经有互斥锁;
    */
+  std::unique_lock<std::mutex> ul(req_queue.mtx_);  // 构造时上锁,析构(当前函数退出)时自动解锁
   while (IsExclusiveGranted(rid)){
-    std::unique_lock<std::mutex> ul(req_queue.mtx_);
     req_queue.cv_.wait(ul);
   }
+  // ul.unlock();   // 不用unlock也行,会自动解锁
 
   // 可能因为死锁,当前线程已经被选作 victim
   if(txn->GetState() == TransactionState::ABORTED){
@@ -120,10 +121,11 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
    * 以下情况需要阻塞:
    * 1.当前rid上已经有锁;
    */
+  std::unique_lock<std::mutex> ul(req_queue.mtx_);  // 构造时上锁,析构(当前函数退出)时自动解锁
   while (IsShareOrExclusiveGranted(rid)){
-    std::unique_lock<std::mutex> ul(req_queue.mtx_);
     req_queue.cv_.wait(ul);
   }
+  // ul.unlock();   // 不用unlock也行,会自动解锁
   
   // 可能因为死锁,当前线程已经被选作 victim
   if(txn->GetState() == TransactionState::ABORTED){
@@ -178,11 +180,13 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
   /**
    * 阻塞等待升级时机
    */
+
   req_queue.upgrading_ = true;
+  std::unique_lock<std::mutex> ul(req_queue.mtx_);  // 构造时上锁,析构(当前函数退出)时自动解锁
   while(!IsUpgradable(txn->GetTransactionId(),rid)){
-    std::unique_lock<std::mutex> ul(req_queue.mtx_);
     req_queue.cv_.wait(ul);
   }
+  // ul.unlock();   // 不用unlock也行,会自动解锁
 
   // 升级锁
   req_queue.upgrading_ = false;

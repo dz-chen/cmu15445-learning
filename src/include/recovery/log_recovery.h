@@ -47,6 +47,7 @@ class LogRecovery {
 
   /** Maintain active transactions and its corresponding latest lsn. */
   std::unordered_map<txn_id_t, lsn_t> active_txn_;
+  
   /** Mapping the log sequence number to log file offset for undos. */
   std::unordered_map<lsn_t, int> lsn_mapping_;
 

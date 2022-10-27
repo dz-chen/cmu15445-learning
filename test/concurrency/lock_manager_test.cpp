@@ -31,7 +31,6 @@ void CheckTxnLockSize(Transaction *txn, size_t shared_size, size_t exclusive_siz
   EXPECT_EQ(txn->GetExclusiveLockSet()->size(), exclusive_size);
 }
 
-// 测试时关闭 enable_cycle_detection_
 // Basic shared lock test under REPEATABLE_READ
 // 注意 REPEATABLE_READ ; 目前只是状态检查...
 void BasicTest1() {
@@ -83,7 +82,6 @@ void BasicTest1() {
 }
 TEST(LockManagerTest, BasicTest) { BasicTest1(); }
 
-// 测试时关闭 enable_cycle_detection_
 // 检查单个事务的2PL过程
 void TwoPLTest() {
   LockManager lock_mgr{};
@@ -131,7 +129,6 @@ void TwoPLTest() {
 }
 TEST(LockManagerTest, TwoPLTest) { TwoPLTest(); }
 
-// 测试时关闭 enable_cycle_detection_
 // 检查单个事务的锁升级过程
 void UpgradeTest() {
   LockManager lock_mgr{};
@@ -160,7 +157,6 @@ void UpgradeTest() {
 }
 TEST(LockManagerTest, UpgradeLockTest) { UpgradeTest(); }
 
-// 测试时关闭 enable_cycle_detection_
 // txn ids 需要加入 txnManager的 txn_map ,否则后续 AddEdge() 时找不到 txn_id 对应的 txn
 TEST(LockManagerTest, GraphEdgeTest) {
   LockManager lock_mgr{};
@@ -209,7 +205,6 @@ TEST(LockManagerTest, GraphEdgeTest) {
   }
 }
 
-// 测试时关闭 enable_cycle_detection_
 // txn ids 需要加入 txnManager的 txn_map ,否则后续 AddEdge() 时找不到 txn_id 对应的 txn
 TEST(LockManagerTest, BasicCycleTest) {
   LockManager lock_mgr{}; /* Use Deadlock detection */
@@ -233,7 +228,6 @@ TEST(LockManagerTest, BasicCycleTest) {
   EXPECT_EQ(false, lock_mgr.HasCycle(&txn));
 }
 
-// 测试时关闭 enable_cycle_detection_
 TEST(LockManagerTest, BasicDeadlockDetectionTest) {
   LockManager lock_mgr{};
   cycle_detection_interval = std::chrono::milliseconds(500);

@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <condition_variable>  // NOLINT
 #include <future>              // NOLINT
@@ -19,6 +21,7 @@
 
 #include "recovery/log_record.h"
 #include "storage/disk/disk_manager.h"
+#include "common/logger.h"
 
 namespace bustub {
 
@@ -51,7 +54,16 @@ class LogManager {
   inline void SetPersistentLSN(lsn_t lsn) { persistent_lsn_ = lsn; }
   inline char *GetLogBuffer() { return log_buffer_; }
 
+
+  /*********************************** functions add by cdz ***********************************/
+  void FlushLog(bool force=false);
+
  private:
+  void SwapBuffer();
+
+  bool trySwapBuffer(size_t need_length);
+
+
   // TODO(students): you may add your own member variables
 
   /** The atomic counter which records the next log sequence number. */
@@ -61,12 +73,16 @@ class LogManager {
 
   char *log_buffer_;
   char *flush_buffer_;
-
-  std::mutex latch_;
+  size_t log_offset_;             // 当前日志的末尾(或者下次日志的开始)在log_buffer_中的偏移
 
   std::thread *flush_thread_ __attribute__((__unused__));
 
-  std::condition_variable cv_;
+  std::mutex latch_;              // 用于保护共享变量 log_buffer_等 的修改(多个线程不能并发写日志)
+  
+  std::mutex mtx_cv_;             // 与条件变量配合使用    -- add by cdz
+  std::condition_variable cv_;    // 刷新日志的条件变量
+  bool need_flush_;               // 条件变量等待的条件(个人实现时合并了两个条件:时间到 和 log buffer满) -- add by cdz
+  std::thread *timer_thread_ __attribute__((__unused__));   // 用于定时(待优化TODO)  -- add by cdz
 
   DiskManager *disk_manager_ __attribute__((__unused__));
 };
