@@ -92,10 +92,10 @@ Redo pass on the TABLE PAGE level
 ## 复制粘贴常用
 ```
 cmake -DCMAKE_BUILD_TYPE=DEBUG ..
-make -j4 buffer_pool_manager_test
-export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  &  ./test/buffer_pool_manager_test
-或者 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/buffer_pool_manager_test
+make -j4 recovery_test
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  &  ./test/recovery_test
+或者 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.4  ./test/recovery_test
 
-gdb --args ./test/buffer_pool_manager_test --gtest_filter=BufferPoolManagerTest.SampleTest
-b buffer_pool_manager_test.cpp:90
+gdb --args ./test/recovery_test --gtest_filter=RecoveryTest.RedoTest
+b recovery_test.cpp:43
 ```

@@ -94,13 +94,15 @@ void LogRecovery::Redo() {
         lsn_mapping_[log_record.GetLSN()] = file_offset_ + buffer_offset_;
         active_txn_[log_record.GetTxnId()] = log_record.GetLSN();
         
+        TablePage* page; 
+        RID delete_rid; RID insert_rid; RID update_rid;
         switch (log_record.log_record_type_){
           case LogRecordType::INVALID:
             LOG_WARN("invalid log record type when Redo log");
-            continue;
+            break;
           case LogRecordType::INSERT:                               // insert
-            RID insert_rid = log_record.GetInsertRID();
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(insert_rid.GetPageId()));
+            insert_rid = log_record.GetInsertRID();
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(insert_rid.GetPageId()));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -110,8 +112,8 @@ void LogRecovery::Redo() {
             buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
             break;
           case LogRecordType::MARKDELETE:                           // delete
-            RID delete_rid = log_record.GetDeleteRID();
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+            delete_rid = log_record.GetDeleteRID();
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -121,8 +123,8 @@ void LogRecovery::Redo() {
             buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
             break;
           case LogRecordType::APPLYDELETE:
-            RID delete_rid = log_record.GetDeleteRID();
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+            delete_rid = log_record.GetDeleteRID();
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -132,8 +134,8 @@ void LogRecovery::Redo() {
             buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
             break;
           case LogRecordType::ROLLBACKDELETE:
-            RID delete_rid = log_record.GetDeleteRID();
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+            delete_rid = log_record.GetDeleteRID();
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -143,8 +145,8 @@ void LogRecovery::Redo() {
             buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
             break;
           case LogRecordType::UPDATE:                             // update
-            RID update_rid = log_record.GetUpdateRID();
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(update_rid.GetPageId()));
+            update_rid = log_record.GetUpdateRID();
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(update_rid.GetPageId()));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -161,7 +163,7 @@ void LogRecovery::Redo() {
             active_txn_.erase(log_record.GetTxnId());
             break;
           case LogRecordType::NEWPAGE:                            // newpage
-            auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(log_record.page_id_));
+            page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(log_record.page_id_));
             // 如果有数据尚未写入
             if(page->GetLSN()<log_record.GetLSN()){
               page->WLatch();
@@ -205,45 +207,47 @@ void LogRecovery::Undo() {
       DeserializeLogRecord(log_buffer_,&log_record);
       lsn = log_record.GetPrevLSN();
 
+      TablePage* page; 
+      RID delete_rid; RID insert_rid; RID update_rid;
       switch (log_record.log_record_type_){
         case LogRecordType::INVALID:
           LOG_WARN("invalid log record type when undo log");
-          continue;
+          break;
         case LogRecordType::INSERT:                               // insert
-          RID insert_rid = log_record.GetInsertRID();
-          auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(insert_rid.GetPageId()));
+          insert_rid = log_record.GetInsertRID();
+          page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(insert_rid.GetPageId()));
           page->WLatch();
           page->ApplyDelete(insert_rid,nullptr,nullptr);
           page->WUnlatch();
           buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
           break;
         case LogRecordType::MARKDELETE:                           // delete
-          RID delete_rid = log_record.GetDeleteRID();
-          auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+          delete_rid = log_record.GetDeleteRID();
+          page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
           page->WLatch();
           page->RollbackDelete(delete_rid,nullptr,nullptr);
           page->WUnlatch();
           buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
           break;
         case LogRecordType::APPLYDELETE:
-          RID delete_rid = log_record.GetDeleteRID();
-          auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+          delete_rid = log_record.GetDeleteRID();
+          page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
           page->WLatch();
           page->InsertTuple(log_record.GetDeleteTuple(),&delete_rid,nullptr,nullptr,nullptr);
           page->WUnlatch();
           buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
           break;
         case LogRecordType::ROLLBACKDELETE:
-          RID delete_rid = log_record.GetDeleteRID();
-          auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
+          delete_rid = log_record.GetDeleteRID();
+          page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(delete_rid.GetPageId()));
           page->WLatch();
           page->MarkDelete(delete_rid,nullptr,nullptr,nullptr);
           page->WUnlatch();
           buffer_pool_manager_->UnpinPage(page->GetPageId(),page->GetLSN()<log_record.GetLSN());
           break;
         case LogRecordType::UPDATE:                             // update
-          RID update_rid = log_record.GetUpdateRID();
-          auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(update_rid.GetPageId()));
+          update_rid = log_record.GetUpdateRID();
+          page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(update_rid.GetPageId()));
           page->WLatch();
           page->UpdateTuple(log_record.GetOriginalTuple(),&log_record.GetUpdateTuple(),update_rid,nullptr,nullptr,nullptr);
           page->WUnlatch();

@@ -24,7 +24,7 @@ namespace bustub {
  */
 void LogManager::RunFlushThread() {
   enable_logging = true;
-  flush_thread_ = new std::thread(&LogManager::FlushLog,false);
+  flush_thread_ = new std::thread(&LogManager::FlushLog,this,false);
   LOG_INFO("log flush thread started");
 }
 
@@ -66,6 +66,7 @@ void LogManager::StopFlushThread() {
 lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
   latch_.lock();
   log_record->lsn_ = next_lsn_++;
+  size_t need_length;
   switch(log_record->log_record_type_){
     case LogRecordType::INVALID:          // invalid
       LOG_WARN("invalid log record type");
@@ -73,7 +74,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
       return -1;
     case LogRecordType::INSERT:           // insert
       // 检查log_buffer_是否足够
-      size_t need_length = 20 + sizeof(RID) + log_record->insert_tuple_.GetLength();
+      need_length = 20 + sizeof(RID) + log_record->insert_tuple_.GetLength();
       trySwapBuffer(need_length);
       // 拷贝数据
       memcpy(log_buffer_ + log_offset_, &log_record, 20);   // 公共部分
@@ -87,7 +88,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
     case LogRecordType::APPLYDELETE:
     case LogRecordType::ROLLBACKDELETE:
       // 检查log_buffer_是否足够
-      size_t need_length = 20 + sizeof(RID) + log_record->delete_tuple_.GetLength();
+      need_length = 20 + sizeof(RID) + log_record->delete_tuple_.GetLength();
       trySwapBuffer(need_length);
       // 拷贝数据
       memcpy(log_buffer_ + log_offset_, &log_record, 20);   // 公共部分
@@ -99,7 +100,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
       break;
     case LogRecordType::UPDATE:           // update
       // 检查log_buffer_是否足够
-      size_t need_length = 20 + sizeof(RID) + log_record->old_tuple_.GetLength() + log_record->new_tuple_.GetLength();
+      need_length = 20 + sizeof(RID) + log_record->old_tuple_.GetLength() + log_record->new_tuple_.GetLength();
       trySwapBuffer(need_length);
       // 拷贝数据
       memcpy(log_buffer_ + log_offset_, &log_record, 20);   // 公共部分
@@ -113,7 +114,7 @@ lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
       break;
     case LogRecordType::NEWPAGE:          // newpage
       // 检查log_buffer_是否足够
-      size_t need_length = 20 + sizeof(page_id_t) + sizeof(page_id_t); 
+      need_length = 20 + sizeof(page_id_t) + sizeof(page_id_t); 
       trySwapBuffer(need_length);
       // 拷贝数据
       memcpy(log_buffer_ + log_offset_, &log_record, 20);   // 公共部分
@@ -139,8 +140,9 @@ lsn_t LogManager::AppendLogRecord(LogRecord *log_record) {
  * 1.buffer pool manager(驱逐脏页)强制刷新;
  * 2.log_timeout 时间到; 
  * 3.log buffer 满;
+ * 注: force 默认为 false
  */ 
-void LogManager::FlushLog(bool force=false){
+void LogManager::FlushLog(bool force){
   if(force){                // 1.强制刷新(直接被调用,不会阻塞线程) => 这个情形是处于调用此函数的 线程 的上下文中
     if(!enable_logging) return;
     // 刷新,log是sequence write,直接追加即可,不必定位具体位置(详见 WriteLog )
