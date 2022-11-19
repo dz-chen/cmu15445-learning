@@ -21,7 +21,12 @@ __________________ 以下是task1需要做的工作
 - implement AppendLogRecord in the LogManager class so that the log records are properly serialized to the log buffer
 
 
-
+### log_buffer_尾部无法写入完整的Record时导致碎片说明
+log_buffer_ 尾部可能没有足够空间写入整个Record,为图简便,目前的实现中直接不使用这部分剩余空间;  
+然后将log_buffer_整个写入磁盘,因此log_file中可能存在碎片;  
+但读取时仍是以log_buffer_为单位,因此可以感知到末尾的碎片(只要写入时将碎片全部置为0);  
+记于此,特别注意!!!  
+实现太不优雅,后续可修改...  
 
 ## SYSTEM RECOVERY
 ### 官方建议/重点
@@ -45,6 +50,11 @@ Transaction: The Transaction object has the GetPrevLSN and SetPrevLSN helper met
 pageLSN,pwersistentLSN,prevLSN等的存储地方,作用?  
 待梳理清楚...  
 
+**************************** 要点 
+- `log_manager 维护全局唯一的lsn`
+- `每个Transaction都维护了自己的lsn,表示该txn最新的log的lsn`;由于lsn全局唯一,txn的lsn是非连续的,见table_page.cpp  
+- `每个page的header处维护了自己的lsn,表示该page中最新log的lsn`;  
+- 
 
 ## GROUP Commit,TODO
 https://wiki.postgresql.org/wiki/Group_commit  
@@ -53,12 +63,30 @@ a group commit feature enables PostgreSQL to commit a group of transactions in b
 
 ## ARIES protocol TODO
 
+## Redo与Undo
 
+## ATT(active transaction table)
+即日志中没有commit/abort的事务.说明这部分事务尚未提交就发生了异常,灾难恢复时需要Undo这部分数据  
 
+## 对tuple的增删查改是通过TableHeap进行; recover则是通过TablePage进行的! 原因 TODO
+https://15445.courses.cs.cmu.edu/fall2019/project4/#recovery  
+```
+Redo pass on the TABLE PAGE level
+```
+正常增删查改时,TableHeap 内部再调用 TablePage 的相关函数;  
+而recover时跳过了TableHeap层,直接在TableHeap层面进行!!!  
 
+原因:TODO
 
 # TODO
 ## 重要紧急:group commit => ARIES protocol => 
+
+## 应该考虑 log_buffer_ 存在没有写满导致存在碎片的问题 todo
+
+## recover时执行insert,delete等操作,是否还需正常的增删查改那样写日志呢?是否应该传入txn呢?
+
+## MARKDELETE,APPLYDELETE,ROLLBACKDELETE的区别/细节?
+
 
 # tmp
 ## 复制粘贴常用

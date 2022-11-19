@@ -157,7 +157,7 @@ class LogRecord {
   // must have fields
   lsn_t lsn_{INVALID_LSN};
   txn_id_t txn_id_{INVALID_TXN_ID};
-  lsn_t prev_lsn_{INVALID_LSN};
+  lsn_t prev_lsn_{INVALID_LSN};     // 实际上是: txn->prev_lsn_
   LogRecordType log_record_type_{LogRecordType::INVALID};
 
   // case1: for delete operation, delete_tuple_ for UNDO operation

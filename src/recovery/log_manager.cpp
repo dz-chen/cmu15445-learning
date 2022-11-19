@@ -144,6 +144,8 @@ void LogManager::FlushLog(bool force=false){
   if(force){                // 1.强制刷新(直接被调用,不会阻塞线程) => 这个情形是处于调用此函数的 线程 的上下文中
     if(!enable_logging) return;
     // 刷新,log是sequence write,直接追加即可,不必定位具体位置(详见 WriteLog )
+    // 注:末尾的碎片置为0
+    memset(log_buffer_+log_offset_ , 0, LOG_BUFFER_SIZE-log_offset_);  
     disk_manager_->WriteLog(log_buffer_,LOG_BUFFER_SIZE);
   }
   else{                     // 2/3. 时间到或log buffer满(需要条件变量,可能阻塞线程) => 这两个情形是作为后台线程处理
@@ -165,6 +167,8 @@ void LogManager::FlushLog(bool force=false){
       ul.unlock();
 
       // 刷新
+      // 注:末尾的碎片置为0
+      memset(log_buffer_+log_offset_ , 0, LOG_BUFFER_SIZE-log_offset_);
       disk_manager_->WriteLog(log_buffer_,LOG_BUFFER_SIZE);
       need_flush_ = false;
     }
